@@ -19,6 +19,7 @@ private:
   float _lowerThreshold;
   float _upperThreshold;
   int _component;
+  bool _keepOrgValues;
 
 public:
   ThresholdWholeSlideFilter();

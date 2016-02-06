@@ -139,7 +139,7 @@ void FilterWorkstationExtensionPlugin::onNewImageLoaded(std::weak_ptr<MultiResol
   }
 }
 
-void FilterWorkstationExtensionPlugin::onFieldOfViewChanged(const QRectF& FOV, std::weak_ptr<MultiResolutionImage> img, const unsigned int level) {
+void FilterWorkstationExtensionPlugin::onFieldOfViewChanged(const QRectF& FOV, const unsigned int level) {
   onFilterResultClearRequested();
   if (_filterThread && _autoUpdate) {
     onFilterResultUpdateRequested();
