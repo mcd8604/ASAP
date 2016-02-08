@@ -3,14 +3,20 @@
 
 #include "MultiResolutionImageReader.h"
 #include "MultiResolutionImage.h"
+#include "imgproc/generic/ColorDeconvolutionFilter.h"
+#include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
 #include "core/filetools.h"
 #include "core/CmdLineProgressMonitor.h"
+#include "config/pathology_config.h"
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
 using namespace std;
 using namespace pathology;
+using namespace cv;
 
 int main(int argc, char *argv[]) {
   try {
@@ -55,20 +61,43 @@ int main(int argc, char *argv[]) {
     MultiResolutionImageReader reader; 
     MultiResolutionImage* input = reader.open(inputPth);
     CmdLineProgressMonitor monitor;
-    if (input) {
-		// Convert level 8 image to HSD color model
-		// Run threshold on Density channel
+	if (input) {
+		// TODO Convert level 8 image to HSD color model
+		// TODO Run threshold on Density channel
+
 		// Iterate over tiles
-			// Get level 0 for tile
-			// Create HSD histogram
-			// Get avg, median, mode, min, max, variance, stddev, etc..
-		// Output results to csv
-		// Train/Test model
-		// Evaluate results
-      if (!fltr.process()) {
-        std::cerr << "ERROR: Processing failed" << std::endl;
-      }
-      delete input;
+
+		// Assume 512 always fits integrally
+		int tileWidth = 512;
+		int tileHeight = 512;
+		vector<unsigned long long, allocator<unsigned long long>> dim = input->getLevelDimensions(0);
+		int numTilesX = dim[0] / tileWidth;
+		int numTilesY = dim[1] / tileHeight;
+
+		for (int y = 0; y < numTilesY; y++) {
+			for (int x = 0; x < numTilesX; x++) {
+				// Get level 0 for tile
+				Patch<double> p = input->getPatch<double>(x * tileWidth, y * tileHeight, tileWidth, tileHeight, 0);
+				Mat m = patchToMat(p);
+				m.convertTo(m, CV_32F);
+
+				// TODO Convert to HSD
+				// Create histogram 
+				Mat rgbHist;
+				int histSize = 256;
+				int channels[] = { 0, 1, 2 };
+				float range[] = { 0, 256 };
+				const float* ranges[] = { range };
+				calcHist(&m, 1, channels, Mat(), rgbHist, 1, &histSize, ranges, true, false);
+				//cout << "Histo Created for (" << x << "," << y << ")\n";
+
+				// TODO Get avg, median, mode, min, max, variance, stddev, etc..
+			}
+		}
+		// TODO Output results to csv
+		// TODO Train/Test model
+		// TODO Evaluate results
+		delete input;
     }
     else {
       std::cerr << "ERROR: Invalid input image" << std::endl;
