@@ -14,9 +14,16 @@ LINK_DIRECTORIES(${Boost_LIBRARY_DIR})
 
 SET(Camelyon_src
   Camelyon.cpp
+  Slide.cpp
+  Segment.cpp
 )
 
-ADD_EXECUTABLE(Camelyon ${Camelyon_src})
+SET(Camelyon_headers
+  Slide.h
+  Segment.h
+)
+
+ADD_EXECUTABLE(Camelyon ${Camelyon_src} ${Camelyon_headers})
 
 SET_TARGET_PROPERTIES(Camelyon PROPERTIES DEBUG_POSTFIX _d)
 TARGET_LINK_LIBRARIES(Camelyon wholeslidefilters multiresolutionimageinterface)
