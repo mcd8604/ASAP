@@ -89,9 +89,9 @@ void TileManager::loadTilesForFieldOfView(const QRectF& FOV, const unsigned int 
       _lastLevel = level;
       _lastFOV = FOVTile;
       for (int x = topLeftTile.x(); x <= bottomRightTile.x(); ++x) {
-        if (x >= 0 && x < nrTiles.x()) {
+        if (x >= 0 && x <= nrTiles.x()) {
           for (int y = topLeftTile.y(); y <= bottomRightTile.y(); ++y) {
-            if (y >= 0 && y < nrTiles.y()) {
+            if (y >= 0 && y <= nrTiles.y()) {
               if (providesCoverage(level, x, y) < 1) {
                 setCoverage(level, x, y, 1);
                 _renderThread->addJob(_tileSize, x, y, level);
@@ -211,7 +211,9 @@ void TileManager::clear() {
   while (_renderThread->getWaitingThreads() != _renderThread->getWorkers().size()) {
   }
   QCoreApplication::processEvents();
-  _cache->clear();
+  if (_cache) {
+    _cache->clear();
+  }
   QList<QGraphicsItem *> itms = _scene->items();
   for (QList<QGraphicsItem *>::iterator it = itms.begin(); it != itms.end(); ++it) {
     WSITileGraphicsItem* itm = dynamic_cast<WSITileGraphicsItem*>((*it));
