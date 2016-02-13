@@ -1,13 +1,23 @@
 #include <string>
 #include <vector>
 #include "Segment.h"
+#include "MultiResolutionImage.h"
+#include "opencv2/core.hpp"
+#include "opencv2/features2d.hpp"
+
+enum SuperpixelType {
+	RECT,
+	SLIC
+};
 
 #pragma once
 class Slide
 {
 public:
-	Slide();
+	Slide(MultiResolutionImage *image, SuperpixelType sType);
 	~Slide();
+
+	void constructFeatures(cv::Ptr<cv::Feature2D> featureDetector);
 
 	/*
 	*	Prints a CSV file with a header.
@@ -19,9 +29,11 @@ public:
 	*/
 	bool segFeatsToCSV(std::string filePath);
 
-	void setPredictions();
+	void evaluatePredictions();
 private:
 	std::string id;
 	std::vector<Segment> segments;
+	MultiResolutionImage *mImage;
+	SuperpixelType mSType;
 };
 
