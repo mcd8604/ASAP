@@ -6,6 +6,7 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/features2d.hpp"
+#include "opencv2/ml.hpp"
 
 using namespace std;
 using namespace cv;
@@ -33,6 +34,12 @@ bool Slide::segFeatsToCSV(std::string filePath)
 	}
 
 	return false;
+}
+
+
+void Slide::setAnnotationList(shared_ptr<AnnotationList> annoList)
+{
+	mAnnoList = annoList;
 }
 
 void Slide::evaluatePredictions()

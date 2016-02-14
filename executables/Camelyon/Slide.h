@@ -2,6 +2,7 @@
 #include <vector>
 #include "Segment.h"
 #include "MultiResolutionImage.h"
+#include "AnnotationList.h"
 #include "opencv2/core.hpp"
 #include "opencv2/features2d.hpp"
 
@@ -28,12 +29,13 @@ public:
 	*	contains an equal number of features.
 	*/
 	bool segFeatsToCSV(std::string filePath);
-
+	void setAnnotationList(std::shared_ptr<AnnotationList> annoList);
 	void evaluatePredictions();
 private:
 	std::string id;
 	std::vector<Segment> segments;
 	MultiResolutionImage *mImage;
 	SuperpixelType mSType;
+	std::shared_ptr<AnnotationList> mAnnoList;
 };
 

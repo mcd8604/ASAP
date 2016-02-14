@@ -4,6 +4,7 @@ INCLUDE_DIRECTORIES(
   .
   ../../
   ${Camelyon_SOURCE_DIR}/../../io/multiresolutionimageinterface
+  ${Camelyon_SOURCE_DIR}/../../annotation
   ${Camelyon_SOURCE_DIR}/../opencv
   ${Boost_INCLUDE_DIRS}
   ${WHOLESLIDEFILTERS_SOURCE_DIR}
@@ -26,7 +27,7 @@ SET(Camelyon_headers
 ADD_EXECUTABLE(Camelyon ${Camelyon_src} ${Camelyon_headers})
 
 SET_TARGET_PROPERTIES(Camelyon PROPERTIES DEBUG_POSTFIX _d)
-TARGET_LINK_LIBRARIES(Camelyon wholeslidefilters multiresolutionimageinterface)
+TARGET_LINK_LIBRARIES(Camelyon wholeslidefilters multiresolutionimageinterface annotation)
 
 INSTALL(
   TARGETS Camelyon 
