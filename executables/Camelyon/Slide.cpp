@@ -50,10 +50,16 @@ vector<Rect> Slide::getTissueTiles(MultiResolutionImage * mImage, int level, Siz
 		for (int x = 0; x < numTilesX; x++) {
 			Rect r(x * w, y * h, w, h);
 			// Classify Foreground/Background
-			// The hema patch has binary values, so this yields the percent of foreground pixels
-			double percentForeground = sum(hema(r))[0] / r.area();
+			// The hema patch has binary values 
+			// (ok, apparently not..)
+			// TODO investigate ColorDeconFilter
+			// so this yields the percent of foreground pixels
+			Scalar sc = sum(hema(r));
+			double c1 = sc[0];
+			double ar = r.area();
+			double percentForeground = c1 / ar;
 			if (percentForeground > 0.1) {
-				tissueTiles.push_back(r);
+				tissueTiles.push_back(Rect(Point(x * nativeTileSize.width, y * nativeTileSize.height), nativeTileSize));
 			}
 		}
 	}

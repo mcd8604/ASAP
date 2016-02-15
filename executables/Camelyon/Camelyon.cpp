@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 
+#include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
 #include "MultiResolutionImageReader.h"
 #include "MultiResolutionImage.h"
 #include "AnnotationService.h"
@@ -9,6 +10,7 @@
 #include "config/pathology_config.h"
 #include "Slide.h"
 #include "opencv2/features2d.hpp"
+#include "opencv2/highgui.hpp"
 
 using namespace std;
 using namespace pathology;
@@ -35,6 +37,14 @@ int main(int argc, char *argv[]) {
 
 		// Native (level 0) slide dimensions happen to be multiples of 512
 		vector<Rect> lvl8Rects = slide->getTissueTiles(input, 8, Size(512, 512));
+
+		// (Temp check)
+		for (Rect r : lvl8Rects) {
+			Patch<uchar> p = input->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
+			Mat m = patchToMat(p);
+			imshow("test", m);
+			waitKey(0);
+		}
 
 		// TODO generate superpixels on each tile at native resolution
 
