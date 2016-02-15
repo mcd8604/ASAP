@@ -26,7 +26,7 @@ void Slide::setAnnotationList(shared_ptr<AnnotationList> annoList)
 
 vector<Rect> Slide::getTissueTiles(MultiResolutionImage * mImage, int level, Size nativeTileSize) {
 	vector<Rect> tissueTiles;
-	// TODO parameterize low res level
+
 	CV_Assert(level < mImage->getNumberOfLevels());
 	vector<unsigned long long, allocator<unsigned long long>> levelDim = mImage->getLevelDimensions(level);
 	Patch<uchar> levelPatch = mImage->getPatch<uchar>(0, 0, levelDim[0], levelDim[1], level);

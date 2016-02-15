@@ -1,8 +1,6 @@
 #include <string>
 #include <vector>
-#include "Segment.h"
 #include "MultiResolutionImage.h"
-#include "imgproc/generic/ColorDeconvolutionFilter.h"
 #include "AnnotationList.h"
 #include "opencv2/core.hpp"
 #include "opencv2/features2d.hpp"
