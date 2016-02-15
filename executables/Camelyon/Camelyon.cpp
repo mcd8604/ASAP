@@ -36,21 +36,29 @@ int main(int argc, char *argv[]) {
 		}
 
 		// Native (level 0) slide dimensions happen to be multiples of 512
-		vector<Rect> lvl8Rects = slide->getTissueTiles(input, 8, Size(512, 512));
+		vector<Rect> tiles = slide->getTissueTiles(input, 8, Size(512, 512));
 
-		// (Temp check)
-		for (Rect r : lvl8Rects) {
+		Mat m;
+		Ptr<SimpleBlobDetector> featureDetector = SimpleBlobDetector::create();
+		vector<KeyPoint> kps;
+		// skip a few hundred for test viewing
+		for (int i = 500; i < tiles.size(); i++) {
+			Rect r = tiles[i];
 			Patch<uchar> p = input->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
-			Mat m = patchToMat(p);
+			m = patchToMat(p);
+
+			// TODO generate superpixels on each tile at native resolution
+
+			// TODO Feature construction
+			// hey! SimpleBlobDetector for fun!
+			featureDetector->clear();
+			featureDetector->detect(m, kps);
+			drawKeypoints(m, kps, m);
+
 			imshow("test", m);
 			waitKey(0);
 		}
 
-		// TODO generate superpixels on each tile at native resolution
-
-		// TODO Feature construction
-		//Ptr<SimpleBlobDetector> featureDetector = SimpleBlobDetector::create();
-		
 		// TODO Feature selection (SVM/RF)
 
 		// TODO Evaluate results

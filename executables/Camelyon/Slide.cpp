@@ -24,6 +24,7 @@ void Slide::setAnnotationList(shared_ptr<AnnotationList> annoList)
 	mAnnoList = annoList;
 }
 
+// Uses the given image and level to classify tissue tiles and returns rectangles of nativeTileSize 
 vector<Rect> Slide::getTissueTiles(MultiResolutionImage * mImage, int level, Size nativeTileSize) {
 	vector<Rect> tissueTiles;
 
