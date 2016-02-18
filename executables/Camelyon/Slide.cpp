@@ -2,6 +2,7 @@
 #include "Slide.h"
 #include "imgproc/generic/ColorDeconvolutionFilter.h"
 #include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
+#include "Annotation.h"
 #include "opencv2/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -10,8 +11,7 @@
 #include "opencv2/ml.hpp"
 
 using namespace std;
-using namespace cv;
-using namespace ml;
+using namespace cv::ml;
 
 Slide::Slide(MultiResolutionImage * image)
 {
@@ -28,7 +28,8 @@ void Slide::setAnnotationList(shared_ptr<AnnotationList> annoList)
 }
 
 // Uses the given image and level to classify tissue tiles and returns them as rectangles of size nativeTileSize 
-vector<Rect> Slide::getTissueTiles(int sampleLevel, Size targetTileSize) {
+vector<cv::Rect> Slide::getTissueTiles(int sampleLevel, cv::Size targetTileSize) {
+	using namespace cv;
 	vector<Rect> tissueTiles;
 
 	CV_Assert(sampleLevel < mImage->getNumberOfLevels());
@@ -63,57 +64,88 @@ vector<Rect> Slide::getTissueTiles(int sampleLevel, Size targetTileSize) {
 			double ar = r.area();
 			double percentForeground = c1 / ar;
 			if (percentForeground > 0.1) {
-				tissueTiles.push_back(Rect(Point(x * targetTileSize.width, y * targetTileSize.height), targetTileSize));
+				tissueTiles.push_back(Rect(cv::Point(x * targetTileSize.width, y * targetTileSize.height), targetTileSize));
 			}
 		}
 	}
 	return tissueTiles;
 }
 
-#define TEST_FC_VIEW_TILES 0;
-OutputArray Slide::constructFeatures(vector<Ptr<Feature2D>> featureDetectors, vector<Rect> tiles, int level) {
+//#define TEST_FC_VIEW_TILES 0;
+cv::Mat Slide::constructFeatures(vector<cv::Ptr<cv::Feature2D>> featureDetectors, vector<cv::Rect> tiles, int level) {
+	using namespace cv;
 	Mat m;
 	int numTiles = tiles.size();
 	int numFeatureDetectors = featureDetectors.size();
 	// TODO parameterize statistics
-	const int numStats = 1;
-	Mat features(numTiles, numFeatureDetectors * numStats, CV_32FC1);
+	Mat features(numTiles, 6, CV_32F);
 	vector<KeyPoint> keyPoints;
-	//Mat descriptors;
+
 	for (int i = 0; i < numTiles; i++) {
 		Rect r = tiles[i];
 		Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, level);
 		m = patchToMat(p);
-		for (Ptr<Feature2D> fd : featureDetectors) {
-			//fd->clear();
-			fd->detect(m, keyPoints);
-
-			// TODO parameterize statistics
-			float count = 0;
-			float sumSize = 0;			
-			for (KeyPoint keyPoint : keyPoints) {
-				count++;
-				sumSize += keyPoint.size;
-			}
-			float meanSize = sumSize / count;
-			
-			features.at<float>(i, 0) = count;
-			features.at<float>(i, 1) = sumSize;
-			features.at<float>(i, 2) = meanSize;
-
-			//fd->detectAndCompute(m, noArray(), keyPoints, descriptors);
-			//features.push_back(descriptors);
-
-#if TEST_FC_VIEW_TILES
-			if(i >= 500) {
-				drawKeypoints(m, keyPoints, m);
-				imshow("test", m);
-				//imshow("descriptors", descriptors);
-				waitKey(0);
-			}
-#endif
-			// TODO feature reduction
-		}
+		Scalar bSum = sum(m);
+		features.at<float>(i, 0) = bSum[0];
+		features.at<float>(i, 1) = bSum[1];
+		features.at<float>(i, 2) = bSum[2];
+		Scalar bMean = mean(m);
+		features.at<float>(i, 3) = bMean[0];
+		features.at<float>(i, 4) = bMean[1];
+		features.at<float>(i, 5) = bMean[2];
 	}
+
+	/*for (int f = 0; f < featureDetectors.size(); f++) {
+	Ptr<Feature2D> fd = featureDetectors[f];
+	//fd->clear();
+	keyPoints.clear();
+	fd->detect(m, keyPoints);
+
+	// TODO parameterize statistics
+	float count = 0;
+	float sumSize = 0;
+	for (KeyPoint keyPoint : keyPoints) {
+	count++;
+	sumSize += keyPoint.size;
+	}
+	float meanSize = sumSize / count;
+
+	int statOffsetIndex = numStats * f;
+	features.at<float>(i, 0 + statOffsetIndex) = count;
+	features.at<float>(i, 1 + statOffsetIndex) = sumSize;
+	features.at<float>(i, 2 + statOffsetIndex) = meanSize;
+
+	//fd->detectAndCompute(m, noArray(), keyPoints, descriptors);
+	//features.push_back(descriptors);
+
+	#if TEST_FC_VIEW_TILES
+	drawKeypoints(m, keyPoints, m);
+	imshow("test", m);
+	//imshow("descriptors", descriptors);
+	waitKey(0);
+	#endif
+	// TODO feature reduction
+	}*/
 	return features;
 }
+
+cv::Mat Slide::generateGroundTruth(std::vector<cv::Rect> tiles)
+{
+	int numTiles = tiles.size();
+	cv::Mat groundTruthMat(numTiles, 1, CV_32S);
+	for (int i = 0; i < numTiles; i++) {
+		cv::Rect tile = tiles[i];
+		int groundTruth = 0;
+		for (shared_ptr<Annotation> annoPtr : mAnnoList->getAnnotations()) {
+			// TODO change from center point containment to polygonal intersections
+			Point p = annoPtr->getCenter();
+			if(tile.contains(cv::Point(p.getX(), p.getY()))) {
+				groundTruth = 1;
+				break;
+			}
+		}
+		groundTruthMat.at<int>(i, 0) = groundTruth;
+	}
+	return groundTruthMat;
+}
+

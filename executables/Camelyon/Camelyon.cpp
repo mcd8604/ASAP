@@ -12,6 +12,7 @@
 #include "opencv2/features2d.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/ml.hpp"
+#include "Camelyon.h"
 
 using namespace std;
 using namespace pathology;
@@ -33,8 +34,7 @@ int main(int argc, char *argv[]) {
 		Slide *slide = new Slide(input);
 		AnnotationService annoSvc;
 		if (annoSvc.loadRepositoryFromFile(annotationFilePath)) {
-			shared_ptr<AnnotationList> annoList = annoSvc.getList();
-			slide->setAnnotationList(annoList);
+			slide->setAnnotationList(annoSvc.getList());
 		}
 
 		/// Pre-processing - Tissue Classification
@@ -45,21 +45,14 @@ int main(int argc, char *argv[]) {
 		// TODO generate superpixels on each tile at native resolution
 
 		/// Feature construction
-		vector<Ptr<Feature2D>> featureDetectors = {
-			SimpleBlobDetector::create(),
-			GFTTDetector::create(),
-			ORB::create()
-		};
-		InputArray features = slide->constructFeatures(featureDetectors, tiles, 0);
-		for (Ptr<Feature2D> fd : featureDetectors)
-			fd.release();
+		Mat features = slide->constructFeatures({ SimpleBlobDetector::create(), GFTTDetector::create(), ORB::create() }, tiles, 0);
 
 		/// Feature selection
-		Mat groundTruth;
-		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, groundTruth);
+		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, slide->generateGroundTruth(tiles));
+
 		// TODO SVM
-		//Ptr<SVM> svm = SVM::create();
-		//svm->trainAuto();
+		Ptr<SVM> svm = SVM::create();
+		svm->trainAuto(trainData);
 
 		// TODO RF
 
