@@ -12,7 +12,6 @@
 #include "opencv2/features2d.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/ml.hpp"
-#include "Camelyon.h"
 
 using namespace std;
 using namespace pathology;
