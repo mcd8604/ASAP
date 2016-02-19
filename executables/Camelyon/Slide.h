@@ -14,6 +14,7 @@ public:
 	void setAnnotationList(std::shared_ptr<AnnotationList> annoList);
 	std::vector<cv::Rect> Slide::getTissueTiles(int sampleLevel, cv::Size targetTileSize);
 	cv::OutputArray constructFeatures(std::vector<cv::Ptr<cv::Feature2D>> featureDetectors, std::vector<cv::Rect> tiles, int level);
+	cv::Mat getGroundTruth(std::vector<cv::Rect> tiles);
 private:
 	MultiResolutionImage *mImage;
 	std::shared_ptr<AnnotationList> mAnnoList;
