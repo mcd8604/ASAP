@@ -47,8 +47,8 @@ int main(int argc, char *argv[]) {
 		Mat features = slide->constructFeatures({ SimpleBlobDetector::create(), GFTTDetector::create(), ORB::create() }, tiles, 0);
 
 		/// Feature selection
-		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, slide->generateGroundTruth(tiles));
-
+		Mat groundTruth = slide->getGroundTruth(tiles);
+		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, groundTruth);
 		// TODO SVM
 		Ptr<SVM> svm = SVM::create();
 		svm->trainAuto(trainData);

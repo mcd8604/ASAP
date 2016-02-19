@@ -1,5 +1,6 @@
 #include <vector>
 #include "Slide.h"
+#include "Annotation.h"
 #include "imgproc/generic/ColorDeconvolutionFilter.h"
 #include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
 #include "Annotation.h"
@@ -9,9 +10,16 @@
 #include "opencv2/features2d.hpp"
 #include "opencv2/ml.hpp"
 #include "opencv2/ml.hpp"
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
+#include <boost/geometry/geometries/polygon.hpp>
+
 
 using namespace std;
-using namespace cv::ml;
+using namespace cv;
+using namespace ml;
+
+typedef ::Point AnnoPoint;
 
 Slide::Slide(MultiResolutionImage * image)
 {
@@ -28,7 +36,7 @@ void Slide::setAnnotationList(shared_ptr<AnnotationList> annoList)
 }
 
 // Uses the given image and level to classify tissue tiles and returns them as rectangles of size nativeTileSize 
-vector<cv::Rect> Slide::getTissueTiles(int sampleLevel, cv::Size targetTileSize) {
+vector<Rect> Slide::getTissueTiles(int sampleLevel, Size targetTileSize) {
 	using namespace cv;
 	vector<Rect> tissueTiles;
 
@@ -71,8 +79,7 @@ vector<cv::Rect> Slide::getTissueTiles(int sampleLevel, cv::Size targetTileSize)
 	return tissueTiles;
 }
 
-//#define TEST_FC_VIEW_TILES 0;
-cv::Mat Slide::constructFeatures(vector<cv::Ptr<cv::Feature2D>> featureDetectors, vector<cv::Rect> tiles, int level) {
+Mat Slide::constructFeatures(vector<Ptr<Feature2D>> featureDetectors, vector<Rect> tiles, int level) {
 	using namespace cv;
 	Mat m;
 	int numTiles = tiles.size();
@@ -80,7 +87,7 @@ cv::Mat Slide::constructFeatures(vector<cv::Ptr<cv::Feature2D>> featureDetectors
 	// TODO parameterize statistics
 	Mat features(numTiles, 6, CV_32F);
 	vector<KeyPoint> keyPoints;
-
+	
 	for (int i = 0; i < numTiles; i++) {
 		Rect r = tiles[i];
 		Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, level);
@@ -129,23 +136,9 @@ cv::Mat Slide::constructFeatures(vector<cv::Ptr<cv::Feature2D>> featureDetectors
 	return features;
 }
 
-cv::Mat Slide::generateGroundTruth(std::vector<cv::Rect> tiles)
+Mat Slide::getGroundTruth(vector<Rect> tiles)
 {
-	int numTiles = tiles.size();
-	cv::Mat groundTruthMat(numTiles, 1, CV_32S);
-	for (int i = 0; i < numTiles; i++) {
-		cv::Rect tile = tiles[i];
-		int groundTruth = 0;
-		for (shared_ptr<Annotation> annoPtr : mAnnoList->getAnnotations()) {
-			// TODO change from center point containment to polygonal intersections
-			Point p = annoPtr->getCenter();
-			if(tile.contains(cv::Point(p.getX(), p.getY()))) {
-				groundTruth = 1;
-				break;
-			}
-		}
-		groundTruthMat.at<int>(i, 0) = groundTruth;
-	}
-	return groundTruthMat;
+	// (redefined Annotation's Point to AnnoPoint, so no more namespace troubles)
+	AnnoPoint a;
+	return Mat();
 }
-
