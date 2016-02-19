@@ -33,8 +33,7 @@ int main(int argc, char *argv[]) {
 		Slide *slide = new Slide(input);
 		AnnotationService annoSvc;
 		if (annoSvc.loadRepositoryFromFile(annotationFilePath)) {
-			shared_ptr<AnnotationList> annoList = annoSvc.getList();
-			slide->setAnnotationList(annoList);
+			slide->setAnnotationList(annoSvc.getList());
 		}
 
 		/// Pre-processing - Tissue Classification
@@ -45,22 +44,14 @@ int main(int argc, char *argv[]) {
 		// TODO generate superpixels on each tile at native resolution
 
 		/// Feature construction
-		vector<Ptr<Feature2D>> featureDetectors = {
-			SimpleBlobDetector::create(),
-			GFTTDetector::create(),
-			ORB::create()
-		};
-		InputArray features = slide->constructFeatures(featureDetectors, tiles, 0);
-		for (Ptr<Feature2D> fd : featureDetectors)
-			fd.release();
+		Mat features = slide->constructFeatures({ SimpleBlobDetector::create(), GFTTDetector::create(), ORB::create() }, tiles, 0);
 
 		/// Feature selection
 		Mat groundTruth = slide->getGroundTruth(tiles);
 		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, groundTruth);
 		// TODO SVM
 		Ptr<SVM> svm = SVM::create();
-		
-		//svm->trainAuto();
+		svm->trainAuto(trainData);
 
 		// TODO RF
 
