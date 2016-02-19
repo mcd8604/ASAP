@@ -16,12 +16,10 @@ LINK_DIRECTORIES(${Boost_LIBRARY_DIR})
 SET(Camelyon_src
   Camelyon.cpp
   Slide.cpp
-  Segment.cpp
 )
 
 SET(Camelyon_headers
   Slide.h
-  Segment.h
 )
 
 ADD_EXECUTABLE(Camelyon ${Camelyon_src} ${Camelyon_headers})

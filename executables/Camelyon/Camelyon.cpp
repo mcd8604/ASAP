@@ -55,10 +55,11 @@ int main(int argc, char *argv[]) {
 			fd.release();
 
 		/// Feature selection
-		Mat groundTruth;
+		Mat groundTruth = slide->getGroundTruth(tiles);
 		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, groundTruth);
 		// TODO SVM
-		//Ptr<SVM> svm = SVM::create();
+		Ptr<SVM> svm = SVM::create();
+		
 		//svm->trainAuto();
 
 		// TODO RF
