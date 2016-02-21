@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <fstream>
 
 #include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
 #include "MultiResolutionImageReader.h"
@@ -16,7 +17,6 @@
 using namespace std;
 using namespace pathology;
 using namespace cv;
-using namespace ml;
 
 int main(int argc, char *argv[]) {
 	if (argc < 3) {
@@ -24,38 +24,65 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 	string imageFilePath = argv[1];
-	string annotationFilePath = argv[2];
+	string groundTruthFilePath = argv[2];
 
 	MultiResolutionImageReader reader; 
 	MultiResolutionImage* input = reader.open(imageFilePath);
 
 	if (input) {
 		Slide *slide = new Slide(input);
-		AnnotationService annoSvc;
+		MultiResolutionImage *groundTruthImage = reader.open(groundTruthFilePath);
+		slide->setGroundTruth(groundTruthImage);
+		/*AnnotationService annoSvc;
 		if (annoSvc.loadRepositoryFromFile(annotationFilePath)) {
 			slide->setAnnotationList(annoSvc.getList());
-		}
+		}*/
 
 		/// Pre-processing - Tissue Classification
 		// Native (level 0) slide dimensions happen to be multiples of 512
-		vector<Rect> tiles = slide->getTissueTiles(8, Size(512, 512));
+		slide->classifyTissueTiles(8, Size(512, 512));
 
 		/// Pre-processing - Superpixel Segmentation
 		// TODO generate superpixels on each tile at native resolution
 
 		/// Feature construction
-		Mat features = slide->constructFeatures({ SimpleBlobDetector::create(), GFTTDetector::create(), ORB::create() }, tiles, 0);
+		int runLevel = 4;
+		vector<Rect> tiles = slide->getTissueTiles(runLevel);
+		//Mat features = slide->constructFeatures({ SimpleBlobDetector::create(), GFTTDetector::create(), ORB::create() }, tiles, runLevel);
+		vector<string> featureNames;
+		Mat features = slide->constructFeatures(tiles, runLevel, &featureNames);
+		Mat groundTruth = slide->getGroundTruth(tiles, runLevel);
 
 		/// Feature selection
-		Mat groundTruth = slide->getGroundTruth(tiles);
-		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, groundTruth);
+		// Currently just storing to files for testing
+		ofstream csv("features.csv");
+		for (int f = 0; f < featureNames.size(); f++) {
+			if (f > 0) csv << ",";
+			csv << featureNames[f];
+		}
+		csv << ",ground_truth";
+		for (int x = 0; x < features.rows; x++) {
+			csv << "\n";
+			for (int y = 0; y < features.cols; y++) {
+				if (y > 0) csv << ",";
+				csv << features.at<float>(x, y);
+			}
+			csv << "," << groundTruth.at<float>(x, 0);
+		}
+		csv.close();
+
 		// TODO SVM
-		Ptr<SVM> svm = SVM::create();
-		svm->trainAuto(trainData);
-
+		//Ptr<SVM> svm = SVM::create();
+		//svm->trainAuto(trainData);
+		//Mat resp;
+		//float pct = svm->calcError(trainData, true, resp);
+		
 		// TODO RF
+		slide->rforest(groundTruth, features);
 
-		// TODO Evaluate results
+		/// Classification
+
+		/// TODO Evaluate results
 
 		delete slide;
 		delete input;
