@@ -3,9 +3,10 @@
 
 #include "Slide.h"
 #include "Annotation.h"
+#include "AnnotationList.h"
 #include "imgproc/generic/ColorDeconvolutionFilter.h"
+#include "imgproc/opencv/NucleiDetectionFilter.h"
 #include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
-#include "Annotation.h"
 #include "opencv2/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -16,13 +17,9 @@
 #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
 
-using namespace std;
-using namespace cv;
-using namespace ml;
-
 typedef ::Point AnnoPoint;
 
-Slide::Slide(MultiResolutionImage * image, MultiResolutionImage *groundTruthImage, int tissueClassLevel, int featureConstrLevel, Size nativeTileSize) :
+Slide::Slide(MultiResolutionImage * image, MultiResolutionImage *groundTruthImage, int tissueClassLevel, int featureConstrLevel, cv::Size nativeTileSize) :
 	mImage(image),
 	mGroundTruthImage(groundTruthImage),
 	mTissueClassLevel(tissueClassLevel),
@@ -32,7 +29,7 @@ Slide::Slide(MultiResolutionImage * image, MultiResolutionImage *groundTruthImag
 	preProcess();
 }
 
-Slide::Slide(MultiResolutionImage * image, shared_ptr<AnnotationList> groundTruth, int tissueClassLevel, int featureConstrLevel, Size nativeTileSize) :
+Slide::Slide(MultiResolutionImage * image, std::shared_ptr<AnnotationList> groundTruth, int tissueClassLevel, int featureConstrLevel, cv::Size nativeTileSize) :
 	mImage(image),
 	mAnnoList(groundTruth),
 	mTissueClassLevel(tissueClassLevel),
@@ -67,8 +64,8 @@ void Slide::classifyTissueTiles() {
 	//assert targetTileSize is power of 2
 	//assert targetTileSize is max 512 per side
 
-	CV_Assert(mTissueClassLevel < mImage->getNumberOfLevels());
-	vector<unsigned long long, allocator<unsigned long long>> levelDim = mImage->getLevelDimensions(mTissueClassLevel);
+	//CV_Assert(mTissueClassLevel < mImage->getNumberOfLevels());
+	std::vector<unsigned long long, std::allocator<unsigned long long>> levelDim = mImage->getLevelDimensions(mTissueClassLevel);
 	Patch<uchar> levelPatch = mImage->getPatch<uchar>(0, 0, levelDim[0], levelDim[1], mTissueClassLevel);
 
 	// filter will convert level patch to thresholded density map for Hematoxylin stain
@@ -77,7 +74,7 @@ void Slide::classifyTissueTiles() {
 	//filter->setGlobalDensityThreshold(0.25);
 	Patch<double> hemaPatch;
 	filter->filter(levelPatch, hemaPatch);
-	Mat hema = patchToMat(hemaPatch);
+	cv::Mat hema = patchToMat(hemaPatch);
 	delete filter;
 
 	double downsample = mImage->getLevelDownsample(mTissueClassLevel);
@@ -88,43 +85,43 @@ void Slide::classifyTissueTiles() {
 
 	for (int y = 0; y < numTilesY; y++) {
 		for (int x = 0; x < numTilesX; x++) {
-			Rect r(x * w, y * h, w, h);
+			cv::Rect r(x * w, y * h, w, h);
 			// Classify Foreground/Background
 			// The hema patch has binary values 
 			// (ok, apparently not..)
 			// TODO investigate ColorDeconFilter
 			// so this yields the percent of foreground pixels
-			Scalar sc = sum(hema(r));
+			cv::Scalar sc = sum(hema(r));
 			double c1 = sc[0];
 			double ar = r.area();
 			double percentForeground = c1 / ar;
 			if (percentForeground > 0.1) {
-				mNativeTissueTiles.push_back(Rect(cv::Point(x * mNativeTileSize.width, y * mNativeTileSize.height), mNativeTileSize));
+				mNativeTissueTiles.push_back(cv::Rect(cv::Point(x * mNativeTileSize.width, y * mNativeTileSize.height), mNativeTileSize));
 			}
 		}
 	}
 }
 
-vector<Rect> Slide::getTissueTiles(int level) {
-	vector<Rect> tissueTiles;
+std::vector<cv::Rect> Slide::getTissueTiles(int level) {
+	std::vector<cv::Rect> tissueTiles;
 	if (level == 0) {
 		tissueTiles = mNativeTissueTiles;
 	}
 	else {
 		tissueTiles.reserve(mNativeTissueTiles.size());
 		double d = mImage->getLevelDownsample(level);
-		for (Rect r : mNativeTissueTiles) {
-			tissueTiles.push_back(Rect(r.x / d, r.y / d, r.width / d, r.height / d));
+		for (cv::Rect r : mNativeTissueTiles) {
+			tissueTiles.push_back(cv::Rect(r.x / d, r.y / d, r.width / d, r.height / d));
 		}
 	}
 	return tissueTiles;
 }
 
 // TODO Implement Strategy pattern for dynamic calculations
-void calcFeatures(int tileIdx, int modeIdx, Mat *m, Mat *features_out) {
+void calcFeatures(int tileIdx, int modeIdx, cv::Mat *m, cv::Mat *features_out) {
 	int numFeatures = 3;
 	// Feature calculations
-	Scalar sSum, sMean, sStdDev;
+	cv::Scalar sSum, sMean, sStdDev;
 	sSum = sum(*m);
 	meanStdDev(*m, sMean, sStdDev);
 	// Storage
@@ -134,20 +131,21 @@ void calcFeatures(int tileIdx, int modeIdx, Mat *m, Mat *features_out) {
 	features_out->at<float>(tileIdx, featureStartIdx + 2) = sStdDev[0];
 }
 
-void setFeatureNames(string mode, vector<string> *featureNames_out) {
+void setFeatureNames(std::string mode, std::vector<std::string> *featureNames_out) {
 	featureNames_out->push_back(mode + "_sum");
 	featureNames_out->push_back(mode + "_mean");
 	featureNames_out->push_back(mode + "_stdDev");
 }
 
-void setFeatureNames(vector<string> *featureNames_out) {
+void setFeatureNames(std::vector<std::string> *featureNames_out) {
 	featureNames_out->clear();
 	setFeatureNames("hema", featureNames_out);
 	setFeatureNames("eos", featureNames_out);
 	setFeatureNames("zero", featureNames_out);
+	featureNames_out->push_back("nuclei");
 }
 
-void Slide::outputFeaturesCSV(string filePath) {
+void Slide::outputFeaturesCSV(std::string filePath) {
 	std::ofstream csv(filePath);
 	for (int f = 0; f < mFeatureNames.size(); f++) {
 		if (f > 0) csv << ",";
@@ -165,15 +163,17 @@ void Slide::outputFeaturesCSV(string filePath) {
 	csv.close();
 }
 
+
 void Slide::constructFeatures() {
-	const vector<Rect> tiles = getTissueTiles(mFeatureConstrLevel);
+	const std::vector<cv::Rect> tiles = getTissueTiles(mFeatureConstrLevel);
 	int numTiles = tiles.size();
 	setFeatureNames(&mFeatureNames);
 	int numFeatures = mFeatureNames.size();
-	mFeatures = Mat(numTiles, numFeatures, CV_32FC1);
+	mFeatures = cv::Mat(numTiles, numFeatures, CV_32FC1);
 	ColorDeconvolutionFilter<uchar> *filter = new ColorDeconvolutionFilter<uchar>();
+	NucleiDetectionFilter<double> *ndf = new NucleiDetectionFilter<double>();
 	for (int i = 0; i < numTiles; i++) {
-		Rect r = tiles[i];
+		cv::Rect r = tiles[i];
 		Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, mFeatureConstrLevel);
 		Patch<double> hemaPatch, eosPatch, zeroPatch;
 		filter->setOutputStain(0);
@@ -185,6 +185,9 @@ void Slide::constructFeatures() {
 		calcFeatures(i, 0, &patchToMat(hemaPatch), &mFeatures);
 		calcFeatures(i, 1, &patchToMat(eosPatch), &mFeatures);
 		calcFeatures(i, 2, &patchToMat(zeroPatch), &mFeatures);
+		std::vector<Point> nuclei;
+		ndf->filter(hemaPatch, nuclei);
+		mFeatures.at<float>(i, 9) = ndf->getNumberOfDetectedNuclei();
 	}
 	delete filter;
 }
@@ -192,30 +195,30 @@ void Slide::constructFeatures() {
 void Slide::processGroundTruth()
 {
 	int numTiles = mNativeTissueTiles.size();
-	mGroundTruthMat = Mat(numTiles, 1, CV_32S);
+	mGroundTruthMat = cv::Mat(numTiles, 1, CV_32S);
 	if(mGroundTruthImage) {
 		//int topLevel = mGroundTruthImage->getNumberOfLevels() - 1;
 		//double d = mImage->getLevelDownsample(topLevel);
 
 		for (int i = 0; i < numTiles; i++) {
-			Rect r = mNativeTissueTiles[i];
+			cv::Rect r = mNativeTissueTiles[i];
 			Patch<uchar> p = mGroundTruthImage->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
-			Mat m = patchToMat(p);
-			Scalar bSum = sum(m);
+			cv::Mat m = patchToMat(p);
+			cv::Scalar bSum = sum(m);
 			mGroundTruthMat.at<int>(i, 0) = bSum[0] == 0 ? 0 : 1;// bSum[0] / r.area();
 		}
 	}
 }
 
-void Slide::rfTrain(const string outputFile) {
-	Ptr<TrainData> trainData = TrainData::create(mFeatures, SampleTypes::ROW_SAMPLE, mGroundTruthMat);
+void Slide::rfTrain(const std::string outputFile) {
+	cv::Ptr<cv::ml::TrainData> trainData = cv::ml::TrainData::create(mFeatures, cv::ml::SampleTypes::ROW_SAMPLE, mGroundTruthMat);
 	trainData->setTrainTestSplitRatio(0.8);
 	std::cout << "Test/Train: " << trainData->getNTestSamples() << "/" << trainData->getNTrainSamples() << "\n";
-	Scalar s = sum(mGroundTruthMat);
+	cv::Scalar s = sum(mGroundTruthMat);
 
-	Ptr<RTrees> rf = RTrees::create();
+	cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::create();
 	rf->setCalculateVarImportance(true);
-	rf->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER, 10, 0));
+	rf->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER, 10, 0));
 	bool ok = rf->train(trainData);
 	if (!ok)
 	{
@@ -223,13 +226,13 @@ void Slide::rfTrain(const string outputFile) {
 	}
 	else
 	{
-		printf("train error: %f\n", rf->calcError(trainData, false, noArray()));
-		printf("test error: %f\n\n", rf->calcError(trainData, true, noArray()));
+		printf("train error: %f\n", rf->calcError(trainData, false, cv::noArray()));
+		printf("test error: %f\n\n", rf->calcError(trainData, true, cv::noArray()));
 	}
 	rf->save(outputFile);
 
 	// Print variable importance
-	Mat var_importance = rf->getVarImportance();
+	cv::Mat var_importance = rf->getVarImportance();
 	if (!var_importance.empty())
 	{
 		double rt_imp_sum = sum(var_importance)[0];
@@ -240,30 +243,30 @@ void Slide::rfTrain(const string outputFile) {
 	}
 }
 
-Mat Slide::rfTest(const string rfModelFile, const string outputFile) {
+cv::Mat Slide::rfTest(const std::string rfModelFile, const std::string outputFile) {
 	// TODO assert model file
-	Ptr<RTrees> rf = RTrees::load<RTrees>(rfModelFile);
-	Ptr<TrainData> trainData = TrainData::create(mFeatures, SampleTypes::ROW_SAMPLE, mGroundTruthMat);
-	Mat resp;
+	cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::load<cv::ml::RTrees>(rfModelFile);
+	cv::Ptr<cv::ml::TrainData> trainData = cv::ml::TrainData::create(mFeatures, cv::ml::SampleTypes::ROW_SAMPLE, mGroundTruthMat);
+	cv::Mat resp;
 	float errorCalc = rf->calcError(trainData, false, resp);
-	FileStorage fs(outputFile, FileStorage::Mode::WRITE);
+	cv::FileStorage fs(outputFile, cv::FileStorage::Mode::WRITE);
 	printf("RF Test error: %f\n", errorCalc);
 	fs << "TestResult" << resp;
 	fs.release();
 
 	// TEST
 	for (int i = 0; i < mNativeTissueTiles.size(); i++) {
-		Rect r = mNativeTissueTiles[i];
+		cv::Rect r = mNativeTissueTiles[i];
 		float gt = mGroundTruthMat.at<float>(i, 0);
 		float test = resp.at<float>(i, 0);
 		if(gt != 0 && test != 0) {
 			Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
-			Mat m = patchToMat(p);
+			cv::Mat m = patchToMat(p);
 			//groundTruthImage.
-			imshow(to_string(r.x) + "," + to_string(r.y), m);
+			cv::imshow(std::to_string(r.x) + "," + std::to_string(r.y), m);
 			//Scalar bSum = sum(m);
 			//groundTruthMat.at<float>(i, 0) = bSum[0] == 0 ? 0 : 1;// bSum[0] / r.area();
-			waitKey();
+			cv::waitKey();
 		}
 	}
 
@@ -271,12 +274,12 @@ Mat Slide::rfTest(const string rfModelFile, const string outputFile) {
 	return resp;
 }
 
-Mat Slide::rfPredict(const string rfModelFile, const string outputFile) {
+cv::Mat Slide::rfPredict(const std::string rfModelFile, const std::string outputFile) {
 	// TODO assert model file
-	Ptr<RTrees> rf = RTrees::load<RTrees>(rfModelFile);
-	Mat results;
+	cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::load<cv::ml::RTrees>(rfModelFile);
+	cv::Mat results;
 	rf->predict(mFeatures, results);
-	FileStorage fs(outputFile, FileStorage::Mode::WRITE);
+	cv::FileStorage fs(outputFile, cv::FileStorage::Mode::WRITE);
 	fs << "PredictionResult" << results;
 	fs.release();
 	return results;
