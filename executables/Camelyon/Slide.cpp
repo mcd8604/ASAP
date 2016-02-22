@@ -1,4 +1,6 @@
 #include <vector>
+#include <fstream>
+
 #include "Slide.h"
 #include "Annotation.h"
 #include "imgproc/generic/ColorDeconvolutionFilter.h"
@@ -20,23 +22,44 @@ using namespace ml;
 
 typedef ::Point AnnoPoint;
 
-Slide::Slide(MultiResolutionImage * image)
+Slide::Slide(MultiResolutionImage * image, MultiResolutionImage *groundTruthImage, int tissueClassLevel, int featureConstrLevel, Size nativeTileSize) :
+	mImage(image),
+	mGroundTruthImage(groundTruthImage),
+	mTissueClassLevel(tissueClassLevel),
+	mFeatureConstrLevel(featureConstrLevel),
+	mNativeTileSize(nativeTileSize)
 {
-	mImage = image;
+	preProcess();
+}
+
+Slide::Slide(MultiResolutionImage * image, shared_ptr<AnnotationList> groundTruth, int tissueClassLevel, int featureConstrLevel, Size nativeTileSize) :
+	mImage(image),
+	mAnnoList(groundTruth),
+	mTissueClassLevel(tissueClassLevel),
+	mFeatureConstrLevel(featureConstrLevel),
+	mNativeTileSize(nativeTileSize)
+{
+	preProcess();
 }
 
 Slide::~Slide()
 {
 }
 
-void Slide::setAnnotationList(shared_ptr<AnnotationList> annoList)
-{
-	mAnnoList = annoList;
+/// Pre-processing 
+/// - Tissue Classification
+/// - Superpixel Segmentation
+/// - Process Ground Truth
+/// - Feature construction
+void Slide::preProcess() {
+	classifyTissueTiles();
+	// TODO generate superpixels on each tile at native resolution (use constructor params)
+	processGroundTruth();
+	constructFeatures();
 }
 
 // Uses the given image and level to classify tissue tiles and returns them as rectangles of size targetTileSize 
-void Slide::classifyTissueTiles(int sampleLevel, Size targetTileSize) {
-	using namespace cv;
+void Slide::classifyTissueTiles() {
 	mNativeTissueTiles.clear();
 
 	//TODO 
@@ -44,9 +67,9 @@ void Slide::classifyTissueTiles(int sampleLevel, Size targetTileSize) {
 	//assert targetTileSize is power of 2
 	//assert targetTileSize is max 512 per side
 
-	CV_Assert(sampleLevel < mImage->getNumberOfLevels());
-	vector<unsigned long long, allocator<unsigned long long>> levelDim = mImage->getLevelDimensions(sampleLevel);
-	Patch<uchar> levelPatch = mImage->getPatch<uchar>(0, 0, levelDim[0], levelDim[1], sampleLevel);
+	CV_Assert(mTissueClassLevel < mImage->getNumberOfLevels());
+	vector<unsigned long long, allocator<unsigned long long>> levelDim = mImage->getLevelDimensions(mTissueClassLevel);
+	Patch<uchar> levelPatch = mImage->getPatch<uchar>(0, 0, levelDim[0], levelDim[1], mTissueClassLevel);
 
 	// filter will convert level patch to thresholded density map for Hematoxylin stain
 	ColorDeconvolutionFilter<uchar> *filter = new ColorDeconvolutionFilter<uchar>();
@@ -57,9 +80,9 @@ void Slide::classifyTissueTiles(int sampleLevel, Size targetTileSize) {
 	Mat hema = patchToMat(hemaPatch);
 	delete filter;
 
-	double downsample = mImage->getLevelDownsample(sampleLevel);
-	int w = targetTileSize.width / downsample;
-	int h = targetTileSize.height / downsample;
+	double downsample = mImage->getLevelDownsample(mTissueClassLevel);
+	int w = mNativeTileSize.width / downsample;
+	int h = mNativeTileSize.height / downsample;
 	int numTilesX = levelDim[0] / w;
 	int numTilesY = levelDim[1] / h;
 
@@ -76,7 +99,7 @@ void Slide::classifyTissueTiles(int sampleLevel, Size targetTileSize) {
 			double ar = r.area();
 			double percentForeground = c1 / ar;
 			if (percentForeground > 0.1) {
-				mNativeTissueTiles.push_back(Rect(cv::Point(x * targetTileSize.width, y * targetTileSize.height), targetTileSize));
+				mNativeTissueTiles.push_back(Rect(cv::Point(x * mNativeTileSize.width, y * mNativeTileSize.height), mNativeTileSize));
 			}
 		}
 	}
@@ -97,6 +120,7 @@ vector<Rect> Slide::getTissueTiles(int level) {
 	return tissueTiles;
 }
 
+// TODO Implement Strategy pattern for dynamic calculations
 void calcFeatures(int tileIdx, int modeIdx, Mat *m, Mat *features_out) {
 	int numFeatures = 3;
 	// Feature calculations
@@ -123,15 +147,34 @@ void setFeatureNames(vector<string> *featureNames_out) {
 	setFeatureNames("zero", featureNames_out);
 }
 
-Mat Slide::constructFeatures(const vector<Rect> tiles, const int level, vector<string> *featureNames_out) {
+void Slide::outputFeaturesCSV(string filePath) {
+	std::ofstream csv(filePath);
+	for (int f = 0; f < mFeatureNames.size(); f++) {
+		if (f > 0) csv << ",";
+		csv << mFeatureNames.at(f);
+	}
+	csv << ",ground_truth";
+	for (int x = 0; x < mFeatures.rows; x++) {
+		csv << "\n";
+		for (int y = 0; y < mFeatures.cols; y++) {
+			if (y > 0) csv << ",";
+			csv << mFeatures.at<float>(x, y);
+		}
+		csv << "," << mGroundTruthMat.at<float>(x, 0);
+	}
+	csv.close();
+}
+
+void Slide::constructFeatures() {
+	const vector<Rect> tiles = getTissueTiles(mFeatureConstrLevel);
 	int numTiles = tiles.size();
-	setFeatureNames(featureNames_out);
-	int numFeatures = featureNames_out->size();
-	Mat features_out(numTiles, numFeatures, CV_32FC1);
+	setFeatureNames(&mFeatureNames);
+	int numFeatures = mFeatureNames.size();
+	mFeatures = Mat(numTiles, numFeatures, CV_32FC1);
 	ColorDeconvolutionFilter<uchar> *filter = new ColorDeconvolutionFilter<uchar>();
 	for (int i = 0; i < numTiles; i++) {
 		Rect r = tiles[i];
-		Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, level);
+		Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, mFeatureConstrLevel);
 		Patch<double> hemaPatch, eosPatch, zeroPatch;
 		filter->setOutputStain(0);
 		filter->filter(p, hemaPatch);
@@ -139,112 +182,36 @@ Mat Slide::constructFeatures(const vector<Rect> tiles, const int level, vector<s
 		filter->filter(p, eosPatch);
 		filter->setOutputStain(2);
 		filter->filter(p, zeroPatch);
-		calcFeatures(i, 0, &patchToMat(hemaPatch), &features_out);
-		calcFeatures(i, 1, &patchToMat(eosPatch), &features_out);
-		calcFeatures(i, 2, &patchToMat(zeroPatch), &features_out);
+		calcFeatures(i, 0, &patchToMat(hemaPatch), &mFeatures);
+		calcFeatures(i, 1, &patchToMat(eosPatch), &mFeatures);
+		calcFeatures(i, 2, &patchToMat(zeroPatch), &mFeatures);
 	}
 	delete filter;
-	return features_out;
 }
 
-Mat Slide::constructFeatures(vector<Ptr<Feature2D>> featureDetectors, vector<Rect> tiles, int level) {
-	int numTiles = tiles.size();
-	Mat features(numTiles, 2, CV_32F);
-	// TODO parameterize statistics
-	/*int numStats = 3;
-	vector<KeyPoint> keyPoints;
-	Mat features(numTiles, numStats * numFeatureDetectors, CV_32F);
-	for (int i = 0; i < numTiles; i++) {
-		Rect r = tiles[i];
-		Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, level);
-		Mat m = patchToMat(p);
-		for (int f = 0; f < featureDetectors.size(); f++) {
-			Ptr<Feature2D> fd = featureDetectors[f];
-			//fd->clear();
-			keyPoints.clear();
-			fd->detect(m, keyPoints);
-
-			// TODO parameterize statistics
-			float count = 0;
-			float sumSize = 0;
-			for (KeyPoint keyPoint : keyPoints) {
-				count++;
-				sumSize += keyPoint.size;
-			}
-			float meanSize = 0;
-			if(count > 0) meanSize = sumSize / count;
-
-			int statOffsetIndex = numStats * f;
-			features.at<float>(i, 0 + statOffsetIndex) = count;
-			if (f == 0 && count > 10) {
-				int yay = 1;
-			}
-			features.at<float>(i, 1 + statOffsetIndex) = sumSize;
-			features.at<float>(i, 2 + statOffsetIndex) = meanSize;
-
-			//fd->detectAndCompute(m, noArray(), keyPoints, descriptors);
-			//features.push_back(descriptors);
-
-			//#if TEST_FC_VIEW_TILES
-			//drawKeypoints(m, keyPoints, m);
-			//imshow("test", m);
-			////imshow("descriptors", descriptors);
-			//waitKey(0);
-			//#endif
-			//// TODO feature reduction
-			//}
-		}
-	}*/
-	return features;
-}
-
-void Slide::setGroundTruth(MultiResolutionImage *groundTruth) {
-	mGroundTruth = groundTruth;
-}
-
-Mat Slide::getGroundTruth(vector<Rect> tiles, int level)
+void Slide::processGroundTruth()
 {
 	int numTiles = mNativeTissueTiles.size();
-	cv::Mat groundTruthMat(numTiles, 1, CV_32F);
-	int topLevel = mGroundTruth->getNumberOfLevels() - 1;
-	double d = mImage->getLevelDownsample(topLevel);
+	mGroundTruthMat = Mat(numTiles, 1, CV_32S);
+	if(mGroundTruthImage) {
+		//int topLevel = mGroundTruthImage->getNumberOfLevels() - 1;
+		//double d = mImage->getLevelDownsample(topLevel);
 
-	for (int i = 0; i < numTiles; i++) {
-		Rect r = mNativeTissueTiles[i];
-		Patch<uchar> p = mGroundTruth->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
-		Mat m = patchToMat(p);
-		Scalar bSum = sum(m);
-		groundTruthMat.at<float>(i, 0) = bSum[0] == 0 ? 0 : 1;// bSum[0] / r.area();
-	}
-	/*for (int i = 0; i < numTiles; i++) {
-		cv::Rect tile = tiles[i];
-		int groundTruth = 0;
-		for (shared_ptr<Annotation> annoPtr : mAnnoList->getAnnotations()) {
-			if (groundTruth == 1) break;
-			// TODO change from center point containment to polygonal intersections
-			AnnoPoint p = annoPtr->getCenter();
-			if (tile.contains(cv::Point(p.getX(), p.getY()))) {
-				groundTruth = 1;
-				break;
-			}
-			vector<AnnoPoint> pts = annoPtr->getCoordinates();
-			for (AnnoPoint pt : pts) {
-				if (tile.contains(cv::Point(pt.getX() / d, pt.getY() / d))) {
-					groundTruth = 1;
-					break;
-				}
-			}
+		for (int i = 0; i < numTiles; i++) {
+			Rect r = mNativeTissueTiles[i];
+			Patch<uchar> p = mGroundTruthImage->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
+			Mat m = patchToMat(p);
+			Scalar bSum = sum(m);
+			mGroundTruthMat.at<int>(i, 0) = bSum[0] == 0 ? 0 : 1;// bSum[0] / r.area();
 		}
-		groundTruthMat.at<int>(i, 0) = groundTruth;
-	}*/
-	return groundTruthMat;
+	}
 }
 
-void Slide::rforest(const Mat groundTruth, const Mat features) {
-	Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, groundTruth);
+void Slide::rfTrain(const string outputFile) {
+	Ptr<TrainData> trainData = TrainData::create(mFeatures, SampleTypes::ROW_SAMPLE, mGroundTruthMat);
 	trainData->setTrainTestSplitRatio(0.8);
 	std::cout << "Test/Train: " << trainData->getNTestSamples() << "/" << trainData->getNTrainSamples() << "\n";
-	Scalar s = sum(groundTruth);
+	Scalar s = sum(mGroundTruthMat);
 
 	Ptr<RTrees> rf = RTrees::create();
 	rf->setCalculateVarImportance(true);
@@ -259,7 +226,7 @@ void Slide::rforest(const Mat groundTruth, const Mat features) {
 		printf("train error: %f\n", rf->calcError(trainData, false, noArray()));
 		printf("test error: %f\n\n", rf->calcError(trainData, true, noArray()));
 	}
-	rf->save("rf.txt");
+	rf->save(outputFile);
 
 	// Print variable importance
 	Mat var_importance = rf->getVarImportance();
@@ -271,4 +238,46 @@ void Slide::rforest(const Mat groundTruth, const Mat features) {
 		for (i = 0; i < n; i++)
 			printf("%-2d\t%-4.1f\n", i, 100.f*var_importance.at<float>(i) / rt_imp_sum);
 	}
+}
+
+Mat Slide::rfTest(const string rfModelFile, const string outputFile) {
+	// TODO assert model file
+	Ptr<RTrees> rf = RTrees::load<RTrees>(rfModelFile);
+	Ptr<TrainData> trainData = TrainData::create(mFeatures, SampleTypes::ROW_SAMPLE, mGroundTruthMat);
+	Mat resp;
+	float errorCalc = rf->calcError(trainData, false, resp);
+	FileStorage fs(outputFile, FileStorage::Mode::WRITE);
+	printf("RF Test error: %f\n", errorCalc);
+	fs << "TestResult" << resp;
+	fs.release();
+
+	// TEST
+	for (int i = 0; i < mNativeTissueTiles.size(); i++) {
+		Rect r = mNativeTissueTiles[i];
+		float gt = mGroundTruthMat.at<float>(i, 0);
+		float test = resp.at<float>(i, 0);
+		if(gt != 0 && test != 0) {
+			Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
+			Mat m = patchToMat(p);
+			//groundTruthImage.
+			imshow(to_string(r.x) + "," + to_string(r.y), m);
+			//Scalar bSum = sum(m);
+			//groundTruthMat.at<float>(i, 0) = bSum[0] == 0 ? 0 : 1;// bSum[0] / r.area();
+			waitKey();
+		}
+	}
+
+
+	return resp;
+}
+
+Mat Slide::rfPredict(const string rfModelFile, const string outputFile) {
+	// TODO assert model file
+	Ptr<RTrees> rf = RTrees::load<RTrees>(rfModelFile);
+	Mat results;
+	rf->predict(mFeatures, results);
+	FileStorage fs(outputFile, FileStorage::Mode::WRITE);
+	fs << "PredictionResult" << results;
+	fs.release();
+	return results;
 }
