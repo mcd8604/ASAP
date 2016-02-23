@@ -1,6 +1,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
 #include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
 #include "MultiResolutionImageReader.h"
 #include "MultiResolutionImage.h"
@@ -13,55 +15,96 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/ml.hpp"
 
+using namespace boost;
+using namespace program_options;
+using namespace filesystem;
 using namespace std;
 using namespace pathology;
 using namespace cv;
-using namespace ml;
 
 int main(int argc, char *argv[]) {
-	if (argc < 3) {
-		cerr << "Usage: Camelyon imageFilePath annotationFilePath";
+	string imageFilePath;
+	bool train;
+	string rfModel;
+	string groundTruthXML;
+	string groundTruthMask;
+	string testResultFile;
+
+	options_description optionsDesc("Options");
+	optionsDesc.add_options()
+		("help,h", "Displays this message")
+		("inputImage,i", value<std::string>(&imageFilePath)->required(), "Path to input image TIF")
+		("train,t", value<bool>(&train)->default_value(true), "Set whether to train a model and save it or load a model and test it.")
+		("randomForestModel,f", value<string>(&rfModel)->default_value("rf.yaml"), "Set the file path for the random forest model YAML")
+		("groundTruthXML,x", value<string>(&groundTruthXML)->default_value(""), "Set the file path for the ground truth XML annotations.")
+		("groundTruthMask,m", value<string>(&groundTruthMask)->default_value(""), "Set the file path for the ground truth TIF mask")
+		("testResultFile,r", value<string>(&testResultFile)->default_value("result.yaml"), "Set the file path for the test result output (XML or YAML).")
+		;
+
+	variables_map vm;
+	try {
+		store(command_line_parser(argc, argv).options(optionsDesc).run(), vm);
+		notify(vm);
+		if (vm.count("help")) {
+			std::cout << optionsDesc <<endl;
+			return 0;
+		}
+	}
+	catch (required_option& e) {
+		cerr << "ERROR: " << e.what() <<endl <<endl;
+		cerr << "Use -h or --help for usage information" <<endl;
 		return -1;
 	}
-	string imageFilePath = argv[1];
-	string annotationFilePath = argv[2];
 
+	if (!exists(imageFilePath)) {
+		cerr << "ERROR: Invalid input image: " << imageFilePath << endl;
+		return -1;
+	}
 	MultiResolutionImageReader reader; 
 	MultiResolutionImage* input = reader.open(imageFilePath);
+	MultiResolutionImage *groundTruthImage;
 
 	if (input) {
-		Slide *slide = new Slide(input);
-		AnnotationService annoSvc;
-		if (annoSvc.loadRepositoryFromFile(annotationFilePath)) {
-			slide->setAnnotationList(annoSvc.getList());
+		Slide *slide;
+		if (groundTruthXML != "") {
+			if (!exists(groundTruthXML)) {
+				cerr << "ERROR: Invalid ground truth annotation file: " << groundTruthXML << endl;
+				return -1;
+			}
+			AnnotationService annoSvc;
+			if (annoSvc.loadRepositoryFromFile(groundTruthXML)) {
+				slide = new Slide(input, annoSvc.getList());
+			}
+			else {
+				cerr << "ERROR: Could not load annotation file: " << groundTruthXML << endl;
+				return -1;
+			}
+		}
+		else if(groundTruthMask != "") {
+			if (!exists(groundTruthMask)) {
+				cerr << "ERROR: Invalid ground truth mask file: " << groundTruthMask << endl;
+				return -1;
+			}
+			groundTruthImage = reader.open(groundTruthMask);
+			if (!groundTruthImage) {
+				cerr << "ERROR: Invalid ground truth mask file: " << groundTruthMask << endl;
+				return -1;
+			}
+			slide = new Slide(input, groundTruthImage);
 		}
 
-		/// Pre-processing - Tissue Classification
-		// Native (level 0) slide dimensions happen to be multiples of 512
-		vector<Rect> tiles = slide->getTissueTiles(8, Size(512, 512));
-
-		/// Pre-processing - Superpixel Segmentation
-		// TODO generate superpixels on each tile at native resolution
-
-		/// Feature construction
-		Mat features = slide->constructFeatures({ SimpleBlobDetector::create(), GFTTDetector::create(), ORB::create() }, tiles, 0);
-
-		/// Feature selection
-		Mat groundTruth = slide->getGroundTruth(tiles);
-		Ptr<TrainData> trainData = TrainData::create(features, SampleTypes::ROW_SAMPLE, groundTruth);
-		// TODO SVM
-		Ptr<SVM> svm = SVM::create();
-		svm->trainAuto(trainData);
-
-		// TODO RF
-
-		// TODO Evaluate results
+		if(train) {
+			slide->rfTrain(rfModel);
+		} else {
+			Mat testResult = slide->rfTest(rfModel, testResultFile);
+		}
 
 		delete slide;
 		delete input;
+		delete groundTruthImage;
     }
     else {
-      std::cerr << "ERROR: Invalid input image" << std::endl;
+     cerr << "ERROR: Invalid input image" <<endl;
     }
 	return 0;
 }
