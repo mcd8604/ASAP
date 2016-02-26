@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <thread>
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -93,6 +94,7 @@ int main(int argc, char *argv[]) {
 			slide = new Slide(input, groundTruthImage);
 		}
 
+		//train or test the random forest
 		if(train) {
 			slide->rfTrain(rfModel);
 		} else {

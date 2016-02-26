@@ -15,10 +15,18 @@ LINK_DIRECTORIES(${Boost_LIBRARY_DIR})
 
 SET(Camelyon_src
   Camelyon.cpp
+  FeatureConstructor.cpp
+  FeatureSelector.cpp
+  ModelTester.cpp
+  ModelTrainer.cpp
   Slide.cpp
 )
 
 SET(Camelyon_headers
+  FeatureConstructor.h
+  FeatureSelector.h
+  ModelTester.h
+  ModelTrainer.h
   Slide.h
 )
 
