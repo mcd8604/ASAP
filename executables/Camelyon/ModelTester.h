@@ -11,6 +11,7 @@ follows naming convention model_* every other file is FSF
 
 #include <string>
 #include "opencv2\ml.hpp"
+#include "TestResults.h"
 
 class ModelTester {
 
@@ -19,7 +20,6 @@ public:
 	ModelTester(std::string filePath);
 	~ModelTester();
 
-	cv::Mat Test(const std::string rfModelFile, const std::string outputFile);
-	cv::Mat Predict(const std::string rfModelFile, const std::string outputFile);
-
+	TestResults Test(const std::string rfModelFile, const std::string outputFile);
+	TestResults Predict(const std::string rfModelFile, const std::string outputFile);
 };

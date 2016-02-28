@@ -5,46 +5,37 @@ ModelTester::ModelTester(){}
 
 ModelTester::~ModelTester(){}
 
+TestResults ModelTester::Test(const std::string rfModelFile, const std::string outputFile) {
+	// TODO: pass in slide object, get features and ground truth
+	cv::Mat features;
+	cv::Mat groundTruth;
 
-
-cv::Mat ModelTester::Test(const std::string rfModelFile, const std::string outputFile) {
-	// TODO assert model file
-	/*cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::load<cv::ml::RTrees>(rfModelFile);
-	cv::Ptr<cv::ml::TrainData> trainData = cv::ml::TrainData::create(mFeatures, cv::ml::SampleTypes::ROW_SAMPLE, mGroundTruthMat);
+	// TODO: assert model file
+	cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::load<cv::ml::RTrees>(rfModelFile);
+	cv::Ptr<cv::ml::TrainData> trainData = cv::ml::TrainData::create(features, cv::ml::SampleTypes::ROW_SAMPLE, groundTruth);
 	cv::Mat resp;
 	float errorCalc = rf->calcError(trainData, false, resp);
+	TestResults testResults(resp, groundTruth);
 	cv::FileStorage fs(outputFile, cv::FileStorage::Mode::WRITE);
-	printf("RF Test error: %f\n", errorCalc);
-	fs << "TestResult" << resp;
+	fs << "Error" << errorCalc;
+	fs << "ConfusionMatrix" << testResults.getConfusionMatrix();
+	fs << "ROCPoint" << testResults.getROCPoint();
+	fs << "ResultMatrix" << resp;
 	fs.release();
 
-	// TEST
-	for (int i = 0; i < mNativeTissueTiles.size(); i++) {
-		cv::Rect r = mNativeTissueTiles[i];
-		float gt = mGroundTruthMat.at<float>(i, 0);
-		float test = resp.at<float>(i, 0);
-		if (gt != 0 && test != 0) {
-			Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, 0);
-			cv::Mat m = patchToMat(p);
-			//groundTruthImage.
-			cv::imshow(std::to_string(r.x) + "," + std::to_string(r.y), m);
-			//Scalar bSum = sum(m);
-			//groundTruthMat.at<float>(i, 0) = bSum[0] == 0 ? 0 : 1;// bSum[0] / r.area();
-			cv::waitKey();
-		}
-	}
-
-	*/
-	return cv::Mat();//resp;
+	return testResults;
 }
 
-cv::Mat ModelTester::Predict(const std::string rfModelFile, const std::string outputFile) {
+TestResults ModelTester::Predict(const std::string rfModelFile, const std::string outputFile) {
+	// TODO: pass in slide object, get features
+	cv::Mat features;
+
 	// TODO assert model file
-	/*cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::load<cv::ml::RTrees>(rfModelFile);
+	cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::load<cv::ml::RTrees>(rfModelFile);
 	cv::Mat results;
-	rf->predict(mFeatures, results);
+	rf->predict(features, results);
 	cv::FileStorage fs(outputFile, cv::FileStorage::Mode::WRITE);
 	fs << "PredictionResult" << results;
-	fs.release();*/
-	return cv::Mat();//results;
+	fs.release();
+	return TestResults(results);
 }
