@@ -20,6 +20,9 @@ public:
 	ModelTester(std::string filePath);
 	~ModelTester();
 
-	TestResults Test(const std::string rfModelFile, const std::string outputFile);
-	TestResults Predict(const std::string rfModelFile, const std::string outputFile);
+	void loadModel(const std::string modelFile);
+	TestResults Test(const std::string outputFile);
+	TestResults Predict(const std::string outputFile);
+private:
+	cv::Ptr<cv::ml::StatModel> mModel;
 };
