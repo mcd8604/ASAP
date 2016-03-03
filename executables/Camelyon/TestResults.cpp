@@ -35,13 +35,19 @@ void TestResults::calculateConfusionMatrix() {
 	for (int i = 0; i < populationSize; i++) {
 		int actual = mGroundTruthMatrix.at<int>(i);
 		int prediction = mResultsMatrix.at<int>(i);
-		// Assume values are only ever 0 or 1
-		if (actual == prediction)
-			actual == 0 ? mTrueNegatives++ : mTruePositives++;
-		else
-			actual == 0 ? mFalsePositives++ : mFalseNegatives++;
+		// Assume classes are represented by 0 or not 0
+		if (actual == 0) 
+			if (prediction == 0)
+				mTrueNegatives++;
+			else
+				mFalsePositives++;
+		else 
+			if (prediction == 0)
+				mFalseNegatives++;
+			else
+				mTruePositives++;
 	}
-	mConfusionMatrix = cv::Mat(2, 2, CV_8UC1);
+	mConfusionMatrix = cv::Mat(2, 2, CV_32SC1);
 	mConfusionMatrix.at<int>(0, 0) = mTruePositives;
 	mConfusionMatrix.at<int>(0, 1) = mFalsePositives;
 	mConfusionMatrix.at<int>(1, 0) = mFalseNegatives;
