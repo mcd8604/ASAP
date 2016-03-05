@@ -2,22 +2,6 @@
 #include <fstream>
 
 #include "Slide.h"
-#include "Annotation.h"
-#include "AnnotationList.h"
-#include "imgproc/generic/ColorDeconvolutionFilter.h"
-#include "imgproc/opencv/NucleiDetectionFilter.h"
-#include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
-#include "opencv2/core.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/features2d.hpp"
-#include "opencv2/ml.hpp"
-#include "opencv2/ml.hpp"
-#include <boost/geometry.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
-#include <boost/geometry/geometries/polygon.hpp>
-
-typedef ::Point AnnoPoint;
 
 Slide::Slide() {}
 
