@@ -13,7 +13,7 @@ void LBPFeatureStrategy::init() {
 }
 
 std::vector<float> LBPFeatureStrategy::constructFeatures(Patch<double> tilePatch) {
-	std::vector<float> featureVector(0., mNumBins);
+	std::vector<float> featureVector(mNumBins, 0);
 
 	Patch<double> hemaPatch;
 	mFilter->filter(tilePatch, hemaPatch);
