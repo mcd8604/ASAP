@@ -19,7 +19,7 @@ FeatureConstructor::FeatureConstructor()
 {
 }
 
-FeatureConstructor::FeatureConstructor(std::string filePath, std::string imageName, std::vector<FeatureStrategy> strategies)
+FeatureConstructor::FeatureConstructor(std::string filePath, std::string imageName, std::vector<FeatureStrategy*> strategies)
 	: mfilePath(filePath), mImageName(imageName), mStrategies(strategies),
 	mTissueClassLevel(8),
 	mFeatureConstrLevel(0),
@@ -138,8 +138,8 @@ void FeatureConstructor::constructFeatures() {
 	const std::vector<cv::Rect> tiles = getTissueTiles(mFeatureConstrLevel);
 	int numTiles = tiles.size();
 	mFeatureNames.clear();
-	for (FeatureStrategy s : mStrategies) {
-		std::vector<std::string> featureNames = s.getFeatureNames();
+	for (FeatureStrategy *s : mStrategies) {
+		std::vector<std::string> featureNames = s->getFeatureNames();
 		mFeatureNames.insert(mFeatureNames.end(), featureNames.begin(), featureNames.end());
 	}
 	int numFeatures = mFeatureNames.size();
@@ -149,8 +149,8 @@ void FeatureConstructor::constructFeatures() {
 		Patch<double> tilePatch = mImage->getPatch<double>(r.x, r.y, r.width, r.height, mFeatureConstrLevel);
 		// Note: This vector/Mat usage can probably be optimized for better performance
 		std::vector<float> featureVector;
-		for (FeatureStrategy s : mStrategies) {
-			std::vector<float> features = s.constructFeatures(tilePatch);
+		for (FeatureStrategy *s : mStrategies) {
+			std::vector<float> features = s->constructFeatures(tilePatch);
 			featureVector.insert(featureVector.end(), features.begin(), features.end());
 		}
 		for (int f = 0; f < numFeatures; f++)

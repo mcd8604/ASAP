@@ -22,7 +22,7 @@ class FeatureConstructor
 {
 public:
 	FeatureConstructor();
-	FeatureConstructor(std::string filePath, std::string imageName, std::vector<FeatureStrategy> strategies);
+	FeatureConstructor(std::string filePath, std::string imageName, std::vector<FeatureStrategy*> strategies);
 	~FeatureConstructor();
 
 	void run();
@@ -30,7 +30,7 @@ private:
 	int mTissueClassLevel;
 	int mFeatureConstrLevel;
 	cv::Size mNativeTileSize;
-	std::vector<FeatureStrategy> mStrategies;
+	std::vector<FeatureStrategy*> mStrategies;
 
 	// Think about relocating these..
 	std::string mfilePath;
