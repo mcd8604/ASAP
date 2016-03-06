@@ -57,7 +57,7 @@ cv::Ptr<cv::ml::TrainData> ModelTrainer::loadTrainingData() {
 		if (rows > 0 && cols > 0) {
 			cv::Mat features = cv::Mat(rows, cols, CV_32F);
 			uchar *fPtr = features.ptr();
-			cv::Mat groundTruth = cv::Mat(rows, 1, CV_32F);
+			cv::Mat groundTruth = cv::Mat(rows, 1, CV_32S);
 			uchar *gtPtr = groundTruth.ptr();
 			for (Slide slide : slides) {
 				cv::Mat slideFeatures = slide.getFeatures();
