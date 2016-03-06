@@ -16,18 +16,23 @@ LINK_DIRECTORIES(${Boost_LIBRARY_DIR})
 SET(Camelyon_src
   Camelyon.cpp
   FeatureConstructor.cpp
+  LBPFeatureStrategy.cpp
   FeatureSelector.cpp
   ModelTester.cpp
   ModelTrainer.cpp
   Slide.cpp
+  TestResults.cpp
 )
 
 SET(Camelyon_headers
   FeatureConstructor.h
+  FeatureStrategy.h
+  LBPFeatureStrategy.h
   FeatureSelector.h
   ModelTester.h
   ModelTrainer.h
   Slide.h
+  TestResults.h
 )
 
 ADD_EXECUTABLE(Camelyon ${Camelyon_src} ${Camelyon_headers})

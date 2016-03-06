@@ -2,30 +2,28 @@
 #include <fstream>
 
 #include "FeatureConstructor.h"
+#include "Slide.h"
+#include "MultiResolutionImageReader.h"
 #include "annotation/Annotation.h"
 #include "annotation/AnnotationList.h"
 #include "imgproc/generic/ColorDeconvolutionFilter.h"
-#include "imgproc/opencv/NucleiDetectionFilter.h"
 #include "imgproc/opencv/DIAGPathologyOpenCVBridge.h"
-#include "opencv2/core.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/features2d.hpp"
-#include "opencv2/ml.hpp"
-#include "opencv2/ml.hpp"
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
 
 typedef ::Point AnnoPoint;
 
-FeatureConstructor::FeatureConstructor() 
+FeatureConstructor::FeatureConstructor()
 	: mfilePath("")
 {
 }
 
-FeatureConstructor::FeatureConstructor(std::string filePath) 
-	: mfilePath(filePath)
+FeatureConstructor::FeatureConstructor(std::string filePath, std::string imageName, std::vector<FeatureStrategy> strategies)
+	: mfilePath(filePath), mImageName(imageName), mStrategies(strategies),
+	mTissueClassLevel(8),
+	mFeatureConstrLevel(0),
+	mNativeTileSize(cv::Size(512, 512))
 {
 }
 
@@ -33,11 +31,23 @@ FeatureConstructor::~FeatureConstructor()
 {
 }
 
+void FeatureConstructor::loadImage(std::string filePath, std::string imageName) {
+	MultiResolutionImageReader reader;
+	mImage = reader.open(filePath + imageName + ".tif");
+	mGroundTruthImage = reader.open(filePath + imageName + "_Mask.tif");
+}
+
 void FeatureConstructor::run() {
+	loadImage(mfilePath, mImageName);
+	Slide slide;
 	classifyTissueTiles();
+	slide.setTissueTiles(mNativeTissueTiles);
 	// TODO generate superpixels on each tile at native resolution (use constructor params)
 	processGroundTruth();
+	slide.setGroundTruth(mGroundTruthMat);
 	constructFeatures();
+	slide.setFeatures(mFeatures);
+	slide.saveToDataFile(mfilePath + mImageName + ".yaml");
 }
 
 void FeatureConstructor::classifyTissueTiles() {
@@ -50,10 +60,10 @@ void FeatureConstructor::classifyTissueTiles() {
 
 	//CV_Assert(mTissueClassLevel < mImage->getNumberOfLevels());
 	std::vector<unsigned long long, std::allocator<unsigned long long>> levelDim = mImage->getLevelDimensions(mTissueClassLevel);
-	Patch<uchar> levelPatch = mImage->getPatch<uchar>(0, 0, levelDim[0], levelDim[1], mTissueClassLevel);
+	Patch<double> levelPatch = mImage->getPatch<double>(0, 0, levelDim[0], levelDim[1], mTissueClassLevel);
 
 	// filter will convert level patch to thresholded density map for Hematoxylin stain
-	ColorDeconvolutionFilter<uchar> *filter = new ColorDeconvolutionFilter<uchar>();
+	ColorDeconvolutionFilter<double> *filter = new ColorDeconvolutionFilter<double>();
 	// TODO adjust filter levels - minor non-tissue artifacts are present
 	//filter->setGlobalDensityThreshold(0.25);
 	Patch<double> hemaPatch;
@@ -124,79 +134,26 @@ std::vector<cv::Rect> FeatureConstructor::getTissueTiles(int level) {
 	return tissueTiles;
 }
 
-// TODO Implement Strategy pattern for dynamic calculations
-void FeatureConstructor::calcFeatures(int tileIdx, int modeIdx, cv::Mat *m) {
-	int numFeatures = 3;
-	// Feature calculations
-	cv::Scalar sSum, sMean, sStdDev;
-	sSum = sum(*m);
-	meanStdDev(*m, sMean, sStdDev);
-	// Storage
-	int featureStartIdx = modeIdx * numFeatures;
-	mFeatures.at<float>(tileIdx, featureStartIdx) = sSum[0];
-	mFeatures.at<float>(tileIdx, featureStartIdx + 1) = sMean[0];
-	mFeatures.at<float>(tileIdx, featureStartIdx + 2) = sStdDev[0];
-}
-
-void FeatureConstructor::setFeatureNames(std::string mode) {
-	mFeatureNames.push_back(mode + "_sum");
-	mFeatureNames.push_back(mode + "_mean");
-	mFeatureNames.push_back(mode + "_stdDev");
-}
-
-void FeatureConstructor::setFeatureNames() {
-	mFeatureNames.clear();
-	setFeatureNames("hema");
-	setFeatureNames("eos");
-	setFeatureNames("zero");
-	mFeatureNames.push_back("nuclei");
-}
-
 void FeatureConstructor::constructFeatures() {
 	const std::vector<cv::Rect> tiles = getTissueTiles(mFeatureConstrLevel);
 	int numTiles = tiles.size();
-	setFeatureNames();
+	mFeatureNames.clear();
+	for (FeatureStrategy s : mStrategies) {
+		std::vector<std::string> featureNames = s.getFeatureNames();
+		mFeatureNames.insert(mFeatureNames.end(), featureNames.begin(), featureNames.end());
+	}
 	int numFeatures = mFeatureNames.size();
 	mFeatures = cv::Mat(numTiles, numFeatures, CV_32FC1);
-	ColorDeconvolutionFilter<uchar> *filter = new ColorDeconvolutionFilter<uchar>();
-	//NucleiDetectionFilter<double> *ndf = new NucleiDetectionFilter<double>();
 	for (int i = 0; i < numTiles; i++) {
 		cv::Rect r = tiles[i];
-		Patch<uchar> p = mImage->getPatch<uchar>(r.x, r.y, r.width, r.height, mFeatureConstrLevel);
-		Patch<double> hemaPatch, eosPatch, zeroPatch;
-		filter->setOutputStain(0);
-		filter->filter(p, hemaPatch);
-		filter->setOutputStain(1);
-		filter->filter(p, eosPatch);
-		filter->setOutputStain(2);
-		filter->filter(p, zeroPatch);
-		cv::Mat hemaMat = patchToMat(hemaPatch);
-		calcFeatures(i, 0, &hemaMat);
-		calcFeatures(i, 1, &patchToMat(eosPatch));
-		calcFeatures(i, 2, &patchToMat(zeroPatch));
-		std::vector<Point> nuclei;
-		//ndf->filter(hemaPatch, nuclei);
-		// THIS IS ERRORING HARD IN DEBUG! - issue is memory de/allocation across DLL
-		//mFeatures.at<float>(i, 9) = ndf->getNumberOfDetectedNuclei();
-		std::vector<std::vector<cv::Point> > contours;
-		cv::Mat t = hemaMat >= .99;
-		std::cout << t.type();
-		cv::findContours(t, contours, cv::RetrievalModes::RETR_EXTERNAL, cv::ContourApproximationModes::CHAIN_APPROX_NONE);
-		mFeatures.at<float>(i, 9) = contours.size();
+		Patch<double> tilePatch = mImage->getPatch<double>(r.x, r.y, r.width, r.height, mFeatureConstrLevel);
+		// Note: This vector/Mat usage can probably be optimized for better performance
+		std::vector<float> featureVector;
+		for (FeatureStrategy s : mStrategies) {
+			std::vector<float> features = s.constructFeatures(tilePatch);
+			featureVector.insert(featureVector.end(), features.begin(), features.end());
+		}
+		for (int f = 0; f < numFeatures; f++)
+			mFeatures.at<float>(i, f) = featureVector.at(f);
 	}
-	//delete filter;
-}
-
-// FeatureSegmentFile - file containing segment data with feature vectors and possibly ground truth
-void FeatureConstructor::saveFeatureSegmentFile(std::string filePath) {
-	cv::FileStorage fs(filePath, cv::FileStorage::WRITE);
-	// TODO parameterize image name/id
-	fs << "imageName" << "someImageName";
-	fs << "tissueTiles" << mNativeTissueTiles;
-	// TODO segments instead of tiles
-	fs << "features" << mFeatures;
-	if (!mGroundTruthMat.empty()) {
-		fs << "groundTruth" << mGroundTruthMat;
-	}
-	fs.release();
 }
