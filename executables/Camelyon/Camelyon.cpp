@@ -27,60 +27,7 @@ void test(std::string imageDir, std::string modelFilePath) {
 	testResults.plotROC(1000);
 }
 
-void constructAll() {
-	string dir = "C:/CAMELYON_TRAIN_DATA/";
-	string fileNames[19] = {
-		//"Tumor_001",
-		//"Tumor_002",
-		//"Tumor_003",
-		//"Tumor_004",
-		//"Tumor_005",
-		//"Tumor_006",
-		//"Tumor_007",
-		//"Tumor_008",
-		//"Tumor_009",
-		//"Tumor_010",
-		//"Tumor_011",
-		//"Tumor_012",
-		//"Tumor_013",
-		//"Tumor_014",
-		//"Tumor_015",
-		//"Tumor_016",
-		//"Tumor_017",
-		//"Tumor_018",
-		//"Tumor_019",
-		//"Tumor_020",
-		//"Tumor_021",
-		"Tumor_022",
-		"Tumor_023",
-		"Tumor_024",
-		"Tumor_025",
-		"Tumor_026",
-		"Tumor_027",
-		"Tumor_028",
-		"Tumor_029",
-		"Tumor_030",
-		"Tumor_031",
-		"Tumor_032",
-		"Tumor_033",
-		"Tumor_034",
-		"Tumor_035",
-		"Tumor_036",
-		"Tumor_037",
-		"Tumor_038",
-		"Tumor_039",
-		"Tumor_040"
-	};
-	LBPFeatureStrategy *st = new LBPFeatureStrategy();
-	for (string fileName : fileNames) {
-		FeatureConstructor fc(dir, fileName, { st });
-		fc.run();
-	}
-	delete st;
-}
-
 int main(int argc, char *argv[]) {
-	//constructAll();
 	//ModelTrainer m("C:/CAMELYON_TRAIN_DATA/");
 	//m.trainSVM("C:/CAMELYON_TRAIN_DATA/Models/Uniform_LBP_SVM_Regression_20.yaml");
 	//m.trainRF("C:/CAMELYON_TRAIN_DATA/Models/Uniform_LBP_RF_Regression_20.yaml", 50, 10);
