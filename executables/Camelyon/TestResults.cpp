@@ -17,7 +17,7 @@ TestResults::~TestResults()
 {
 }
 
-void TestResults::plotROC(const int numPoints) {
+cv::Mat TestResults::plotROC(const int numPoints) {
 	cv::Size size(512, 512);
 	cv::Mat plot = cv:: Mat::zeros(size, CV_8UC1);
 	for (float i = 1; i < numPoints; ++i) {
@@ -28,8 +28,9 @@ void TestResults::plotROC(const int numPoints) {
 		cv::Point pScaled(p.x * size.width, size.height - (p.y * size.height));
 		cv::circle(plot, pScaled, 3, cv::Scalar(255), 0);
 	}
-	cv::imshow("ROC", plot);
-	cv::waitKey(0);
+	//cv::imshow("ROC", plot);
+	//cv::waitKey(0);
+	return plot;
 }
 
 void TestResults::calculateConfusionMatrix() {

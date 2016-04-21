@@ -10,7 +10,7 @@ public:
 	//cv::Mat getPredictionsMatrix() { return mPredictionsMatrix; }
 	//cv::Mat getGroundTruthMatrix() { return mGroundTruthMatrix; }
 	//cv::Mat getConfusionMatrix() { return mConfusionMatrix; }
-	void plotROC(const int numPoints);
+	cv::Mat plotROC(const int numPoints);
 private:
 	double getAccuracy();
 	// Fall-out (False positive rate)
