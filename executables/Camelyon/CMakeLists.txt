@@ -21,6 +21,7 @@ SET(Camelyon_src
   ModelTester.cpp
   ModelTrainer.cpp
   Slide.cpp
+  SlideLoader.cpp
   TestResults.cpp
 )
 
@@ -32,6 +33,7 @@ SET(Camelyon_headers
   ModelTester.h
   ModelTrainer.h
   Slide.h
+  SlideLoader.h
   TestResults.h
 )
 

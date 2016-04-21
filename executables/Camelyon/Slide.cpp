@@ -25,7 +25,7 @@ void Slide::saveToDataFile(std::string dataFile) {
 	cv::FileStorage fs(dataFile, cv::FileStorage::WRITE);
 	fs << "tissueTiles" << mTissueTiles;
 	fs << "features" << mFeatures;
-	//if (!mGroundTruthMat.empty()) {
+	//if (!mGroundTruth.empty()) {
 	fs << "groundTruth" << mGroundTruth;
 	//}
 	fs.release();

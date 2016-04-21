@@ -1,4 +1,5 @@
 #include "ModelTrainer.h"
+#include "SlideLoader.h"
 #include "boost\filesystem.hpp"
 #include "boost\algorithm\string.hpp"
 
@@ -13,39 +14,14 @@ ModelTrainer::ModelTrainer(string dirPath) : mDirPath(dirPath) { }
 ModelTrainer::~ModelTrainer(){}
 
 /*
-* Load all files in mDirPath with the extension .xml or .yaml as Slide objects
-*/
-vector<Slide> ModelTrainer::loadSlides() {
-	vector<Slide> slides;
-	path dir(mDirPath);
-	try {
-		if (exists(dir) && is_directory(dir)) {
-			for (directory_entry& entry : directory_iterator(dir)) {
-				path file = entry.path();
-				if (is_regular_file(file)) {
-					string ext = to_upper_copy(file.extension().generic_string());
-					if (ext == ".YAML" || ext == ".XML") {
-						string imgPath = file.generic_string();
-						Slide s(imgPath);
-						slides.push_back(s);
-					}
-				}
-			}
-		}
-	}
-	catch (const filesystem_error& ex) {
-		cerr << ex.what() << '\n';
-	}
-	return slides;
-}
-
-/*
 * Loads all Slide files in mDirPath and combines the data into a single TrainData.
 * Assumes all Slide files contain the same order of features.
 */
 cv::Ptr<cv::ml::TrainData> ModelTrainer::loadTrainingData() {
 	cv::Ptr<cv::ml::TrainData> trainData;
-	vector<Slide> slides = loadSlides();
+	vector<Slide> slides;
+	vector<string> slideNames;
+	SlideLoader::loadSlides(mDirPath, slides, slideNames);
 	int numSlides = slides.size();
 	if (numSlides > 0) {
 		int rows = 0;
@@ -57,7 +33,7 @@ cv::Ptr<cv::ml::TrainData> ModelTrainer::loadTrainingData() {
 		if (rows > 0 && cols > 0) {
 			cv::Mat features = cv::Mat(rows, cols, CV_32F);
 			uchar *fPtr = features.ptr();
-			cv::Mat groundTruth = cv::Mat(rows, 1, CV_32S);
+			cv::Mat groundTruth = cv::Mat(rows, 1, CV_32F);
 			uchar *gtPtr = groundTruth.ptr();
 			for (Slide slide : slides) {
 				cv::Mat slideFeatures = slide.getFeatures();
@@ -89,9 +65,21 @@ void ModelTrainer::trainRF(const std::string outputFilePath, int nTrees, int max
 	cv::Ptr<cv::ml::RTrees> rf = cv::ml::RTrees::create();
 	rf->setCalculateVarImportance(true);
 	rf->setMaxDepth(maxDepth);
-	rf->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER, nTrees, 0));
-	rf->train(trainData);
-	rf->save(outputFilePath);
+	rf->setRegressionAccuracy(0.0001);
+	rf->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER, nTrees, 0.0001));
+	if(rf->train(trainData))
+		rf->save(outputFilePath);
+}
+
+void ModelTrainer::trainSVM(const std::string outputFilePath) {
+	cv::Ptr<cv::ml::TrainData> trainData = loadTrainingData();
+	cv::Ptr<cv::ml::SVM> svm = cv::ml::SVM::create();
+	svm->setKernel(cv::ml::SVM::KernelTypes::LINEAR);
+	svm->setType(cv::ml::SVM::Types::EPS_SVR);
+	svm->setP(0.01);
+	svm->setTermCriteria(cv::TermCriteria(cv::TermCriteria::COUNT, 1000, 1e-6));
+	if(svm->train(trainData))
+		svm->save(outputFilePath);
 }
 
 /*

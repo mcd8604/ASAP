@@ -12,6 +12,7 @@ follows naming convention model_* every other file is FSF
 #include <string>
 #include "opencv2\ml.hpp"
 #include "TestResults.h"
+#include "Slide.h"
 
 class ModelTester {
 
@@ -20,9 +21,11 @@ public:
 	ModelTester(std::string filePath);
 	~ModelTester();
 
-	void loadModel(const std::string modelFile);
-	TestResults Test(const std::string outputFile);
-	TestResults Predict(const std::string outputFile);
+	void ModelTester::loadSVMModel(const std::string modelFile);
+	void ModelTester::loadRFModel(const std::string modelFile);
+	TestResults Test(const std::string slideDir);
+	cv::Mat Test(Slide slide, const std::string outputFile);
+	cv::Mat Predict(Slide slide, const std::string outputFile);
 private:
 	cv::Ptr<cv::ml::StatModel> mModel;
 };
