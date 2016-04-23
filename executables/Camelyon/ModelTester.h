@@ -28,4 +28,5 @@ public:
 	cv::Mat Predict(Slide slide, const std::string outputFile);
 private:
 	cv::Ptr<cv::ml::StatModel> mModel;
+	void renderHeatMap(const std::vector<cv::Rect> segments, const cv::Mat &predictions, const std::string imgLoc);
 };
