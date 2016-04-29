@@ -9,48 +9,39 @@
 #include "ModelTrainer.h"
 #include "ModelTester.h"
 
-
 #include "opencv2\highgui.hpp"
 #include "boost\filesystem.hpp"
 #include "boost\algorithm\string.hpp"
+#include "boost\program_options.hpp"
 
 using namespace boost;
 using namespace boost::filesystem;
+using namespace boost::program_options;
 
 using namespace std;
 using namespace cv;
 
-void test(std::string imageDir, std::string modelFilePath) {
-	ModelTester tester;
-	tester.loadSVMModel(modelFilePath);
-	TestResults testResults = tester.Test(imageDir);
-	testResults.plotROC(1000);
-}
-
 int main(int argc, char *argv[]) {
-	//ModelTrainer m("C:/CAMELYON_TRAIN_DATA/");
-	//m.trainSVM("C:/CAMELYON_TRAIN_DATA/Models/Uniform_LBP_SVM_Regression_20.yaml");
-	//m.trainRF("C:/CAMELYON_TRAIN_DATA/Models/Uniform_LBP_RF_Regression_20.yaml", 50, 10);
-	test("C:/CAMELYON_TRAIN_DATA/features/Uniform LBP/test", "C:/CAMELYON_TRAIN_DATA/Models/Uniform_LBP_SVM_Regression_20.yaml");
-}
-
-/*int main(int argc, char *argv[]) {
-	string imageFilePath;
 	bool train;
-	string rfModel;
-	string groundTruthXML;
-	string groundTruthMask;
-	string testResultFile;
+	bool test;
+	string rfModelFile;
+	int rfMaxDepth;
+	int rfNumTrees;
+	string svmModelFile;
+	string trainDataDirectory;
+	string testDataDirectory;
 
 	options_description optionsDesc("Options");
 	optionsDesc.add_options()
 		("help,h", "Displays this message")
-		("inputImage,i", value<std::string>(&imageFilePath)->required(), "Path to input image TIF")
-		("train,t", value<bool>(&train)->default_value(true), "Set whether to train a model and save it or load a model and test it.")
-		("randomForestModel,f", value<string>(&rfModel)->default_value("rf.yaml"), "Set the file path for the random forest model YAML")
-		("groundTruthXML,x", value<string>(&groundTruthXML)->default_value(""), "Set the file path for the ground truth XML annotations.")
-		("groundTruthMask,m", value<string>(&groundTruthMask)->default_value(""), "Set the file path for the ground truth TIF mask")
-		("testResultFile,r", value<string>(&testResultFile)->default_value("result.yaml"), "Set the file path for the test result output (XML or YAML).")
+		("train,n", value<bool>(&train)->default_value(true), "Set to True to train new models.")
+		("test,t", value<bool>(&test)->default_value(true), "Set to True to test models.")
+		("rfModelFile,r", value<string>(&rfModelFile)->default_value("rf.yaml"), "Set the file path for the model.")
+		("rfMaxDepth,rd", value<int>(&rfMaxDepth)->default_value(10), "Set the max depth of the Random Forest model.")
+		("rfNumTrees,rt", value<int>(&rfNumTrees)->default_value(50), "Set the number of trees for the Random Forest model.")
+		("svmModelFile,s", value<string>(&svmModelFile)->default_value("svm.yaml"), "Set the file path for the model.")
+		("trainDataDirectory,nd", value<string>(&trainDataDirectory)->default_value("trainData"), "The directory containing training data.")
+		("testDataDirectory,td", value<string>(&testDataDirectory)->default_value("testData"), "The directory containing test data.")
 		;
 
 	variables_map vm;
@@ -67,58 +58,21 @@ int main(int argc, char *argv[]) {
 		cerr << "Use -h or --help for usage information" <<endl;
 		return -1;
 	}
-
-	if (!exists(imageFilePath)) {
-		cerr << "ERROR: Invalid input image: " << imageFilePath << endl;
-		return -1;
+	
+	if (train) {
+		ModelTrainer m(trainDataDirectory);
+		m.trainSVM(svmModelFile);
+		m.trainRF(rfModelFile, rfNumTrees, rfMaxDepth);
+	} 
+   
+	if (test) {
+		ModelTester tester;
+		tester.loadSVMModel(svmModelFile);
+		tester.Test(testDataDirectory, testDataDirectory + "/SVM_RESULTS/");
+		tester.loadSVMModel(rfModelFile);
+		tester.Test(testDataDirectory, testDataDirectory + "/RF_RESULTS/");
 	}
-	MultiResolutionImageReader reader; 
-	MultiResolutionImage* input = reader.open(imageFilePath);
-	MultiResolutionImage *groundTruthImage;
 
-	if (input) {
-		Slide *slide;
-		if (groundTruthXML != "") {
-			if (!exists(groundTruthXML)) {
-				cerr << "ERROR: Invalid ground truth annotation file: " << groundTruthXML << endl;
-				return -1;
-			}
-			AnnotationService annoSvc;
-			if (annoSvc.loadRepositoryFromFile(groundTruthXML)) {
-				slide = new Slide(input, annoSvc.getList());
-			}
-			else {
-				cerr << "ERROR: Could not load annotation file: " << groundTruthXML << endl;
-				return -1;
-			}
-		}
-		else if(groundTruthMask != "") {
-			if (!exists(groundTruthMask)) {
-				cerr << "ERROR: Invalid ground truth mask file: " << groundTruthMask << endl;
-				return -1;
-			}
-			groundTruthImage = reader.open(groundTruthMask);
-			if (!groundTruthImage) {
-				cerr << "ERROR: Invalid ground truth mask file: " << groundTruthMask << endl;
-				return -1;
-			}
-			slide = new Slide(input, groundTruthImage);
-		}
-
-		//train or test the random forest
-		if(train) {
-			slide->rfTrain(rfModel);
-		} else {
-			Mat testResult = slide->rfTest(rfModel, testResultFile);
-		}
-
-		delete slide;
-		delete input;
-		delete groundTruthImage;
-    }
-    else {
-     cerr << "ERROR: Invalid input image" <<endl;
-    }
 	return 0;
-}*/
+}
 

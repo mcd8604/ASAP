@@ -1,7 +1,7 @@
 #include "ModelTester.h"
 #include "SlideLoader.h"
 #include "opencv2/core.hpp"
-#include "opencv2\highgui.hpp"
+#include "opencv2/highgui.hpp"
 
 ModelTester::ModelTester(){}
 
@@ -32,7 +32,7 @@ cv::Vec3f thresholdGetColor(const float value) {
 	return color;
 }
 
-void ModelTester::renderHeatMap(const std::vector<cv::Rect> segments, const cv::Mat &predictions, const std::string imgLoc) {
+cv::Mat ModelTester::renderHeatMap(const std::vector<cv::Rect> segments, const cv::Mat &predictions) {
 	// TODO: parameterize size
 	cv::Mat heatMap = cv::Mat::zeros(cv::Size(191, 432), CV_32FC3);
 	for (int i = 0; i < segments.size(); ++i) {
@@ -44,10 +44,10 @@ void ModelTester::renderHeatMap(const std::vector<cv::Rect> segments, const cv::
 	cv::Mat outImg;
 	heatMap *= 255;
 	heatMap.convertTo(outImg, CV_8UC3);
-	cv::imwrite(imgLoc, heatMap);
+	return heatMap;
 }
 
-TestResults ModelTester::Test(const std::string slideDir) {
+TestResults ModelTester::Test(const std::string slideDir, const std::string outputDir) {
 	std::vector<std::string> slideNames;
 	std::vector<Slide> slides;
 	SlideLoader::loadSlides(slideDir, slides, slideNames);
@@ -56,15 +56,18 @@ TestResults ModelTester::Test(const std::string slideDir) {
 	cv::Mat totalGroundTruth;
 	for (int i = 0; i < slides.size(); ++i) {
 		Slide slide = slides[i];
-		cv::Mat predictions = Test(slide, slideDir + "/" + slideNames[i] + "_predictions.yaml");
+		cv::Mat predictions = Test(slide, outputDir + "/" + slideNames[i] + "_predictions.yaml");
 		cv::Mat groundTruth = slide.getGroundTruth();
-		renderHeatMap(slide.getTissueTiles(), groundTruth, slideDir + "/" + slideNames[i] + "_groundTruth.bmp");
-		renderHeatMap(slide.getTissueTiles(), predictions, slideDir + "/" + slideNames[i] + "_heatMap.bmp");
+		std::string groundTruthLoc = outputDir + "/" + slideNames[i] + "_groundTruth.bmp";
+		cv::imwrite(groundTruthLoc, renderHeatMap(slide.getTissueTiles(), groundTruth));
+		std::string heatMapLoc = outputDir + "/" + slideNames[i] + "_heatMap.bmp";
+		cv::imwrite(heatMapLoc, renderHeatMap(slide.getTissueTiles(), predictions));
 		totalPredictions.push_back(predictions);
 		totalGroundTruth.push_back(groundTruth);
 	}
 
 	TestResults testResults(totalPredictions, totalGroundTruth);
+	cv::imwrite(outputDir + "/ROC.bmp", testResults.plotROC(1000));
 	return testResults;
 }
 

@@ -23,10 +23,10 @@ public:
 
 	void ModelTester::loadSVMModel(const std::string modelFile);
 	void ModelTester::loadRFModel(const std::string modelFile);
-	TestResults Test(const std::string slideDir);
+	TestResults Test(const std::string slideDir, const std::string outputDir);
 	cv::Mat Test(Slide slide, const std::string outputFile);
 	cv::Mat Predict(Slide slide, const std::string outputFile);
 private:
 	cv::Ptr<cv::ml::StatModel> mModel;
-	void renderHeatMap(const std::vector<cv::Rect> segments, const cv::Mat &predictions, const std::string imgLoc);
+	cv::Mat renderHeatMap(const std::vector<cv::Rect> segments, const cv::Mat &predictions);
 };
