@@ -21,7 +21,6 @@ cv::Mat TestResults::plotROC(const int numPoints) {
 	cv::Size size(512, 512);
 	cv::Mat plot = cv:: Mat::zeros(size, CV_8UC1);
 	for (float i = 1; i < numPoints; ++i) {
-		//float t = i / 512;
 		mThreshold = i / numPoints;
 		calculateConfusionMatrix();
 		cv::Point_<double> p = getROCPoint();
@@ -31,6 +30,18 @@ cv::Mat TestResults::plotROC(const int numPoints) {
 	//cv::imshow("ROC", plot);
 	//cv::waitKey(0);
 	return plot;
+}
+
+double TestResults::getAUC(const int numPoints) {
+	double area = 0;
+	for (float i = 1; i < numPoints; ++i) {
+		mThreshold = i / numPoints;
+		calculateConfusionMatrix();
+		cv::Point_<double> p = getROCPoint();
+		// TODO: fix this by ordering points and calculating proper widths
+		area += p.y * (1. / numPoints);
+	}
+	return area;
 }
 
 void TestResults::calculateConfusionMatrix() {

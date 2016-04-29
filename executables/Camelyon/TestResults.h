@@ -11,6 +11,7 @@ public:
 	//cv::Mat getGroundTruthMatrix() { return mGroundTruthMatrix; }
 	//cv::Mat getConfusionMatrix() { return mConfusionMatrix; }
 	cv::Mat plotROC(const int numPoints);
+	double getAUC(const int numPoints);
 private:
 	double getAccuracy();
 	// Fall-out (False positive rate)
