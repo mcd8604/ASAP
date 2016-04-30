@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 		ModelTester tester;
 		tester.loadSVMModel(svmModelFile);
 		tester.Test(testDataDirectory, testDataDirectory + "/SVM_RESULTS/");
-		tester.loadSVMModel(rfModelFile);
+		tester.loadRFModel(rfModelFile);
 		tester.Test(testDataDirectory, testDataDirectory + "/RF_RESULTS/");
 	}
 
